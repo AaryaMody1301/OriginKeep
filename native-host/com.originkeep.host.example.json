@@ -1,0 +1,9 @@
+{
+  "name": "com.originkeep.host",
+  "description": "OriginKeep local provenance capture host",
+  "path": "C:\\ABSOLUTE\\PATH\\TO\\originkeep-native-host.exe",
+  "type": "stdio",
+  "allowed_origins": [
+    "chrome-extension://REPLACE_WITH_EXTENSION_ID/"
+  ]
+}
