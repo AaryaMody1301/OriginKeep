@@ -911,7 +911,10 @@ mod tests {
         let version: i64 = connection
             .query_row("PRAGMA user_version", [], |row| row.get(0))
             .unwrap();
-        assert_eq!(version, 4);
+        assert!(
+            version >= 4,
+            "expected Phase 4 or newer schema, got {version}"
+        );
         assert_eq!(database_health(&connection).unwrap(), "OK");
         drop(connection);
         fs::remove_file(database_path).ok();
