@@ -117,7 +117,7 @@ fn backfill_phase2_metadata(connection: &Connection) -> rusqlite::Result<()> {
     let records = {
         let mut statement = connection
             .prepare("SELECT id, original_url, final_url, sha256 FROM downloads ORDER BY id ASC")?;
-        statement
+        let records = statement
             .query_map([], |row| {
                 Ok((
                     row.get::<_, i64>(0)?,
@@ -126,7 +126,8 @@ fn backfill_phase2_metadata(connection: &Connection) -> rusqlite::Result<()> {
                     row.get::<_, Option<String>>(3)?,
                 ))
             })?
-            .collect::<rusqlite::Result<Vec<_>>>()?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        records
     };
 
     for (id, original_url, final_url, sha256) in records {
@@ -449,7 +450,7 @@ fn verify_local_files_with_connection(
     initialize_connection(connection)?;
     let records = {
         let mut statement = connection.prepare("SELECT id, local_path, sha256 FROM downloads")?;
-        statement
+        let records = statement
             .query_map([], |row| {
                 Ok((
                     row.get::<_, i64>(0)?,
@@ -457,7 +458,8 @@ fn verify_local_files_with_connection(
                     row.get::<_, Option<String>>(2)?,
                 ))
             })?
-            .collect::<rusqlite::Result<Vec<_>>>()?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        records
     };
 
     let mut summary = VerificationSummary {
