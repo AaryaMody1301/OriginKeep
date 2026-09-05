@@ -8,7 +8,7 @@
   FileClose $0
 
   FileOpen $0 "$INSTDIR\com.originkeep.host.firefox.json" w
-  FileWrite $0 '{"name":"${ORIGINKEEP_NATIVE_HOST}","description":"OriginKeep local provenance capture host","path":"$INSTDIR\\originkeep-native-host.exe","type":"stdio","allowed_extensions":["${ORIGINKEEP_FIREFOX_EXTENSION_ID}"]}'
+  FileWrite $0 '{"name":"${ORIGINKEEP_NATIVE_HOST}","description":"OriginKeep local provenance capture host","path":"originkeep-native-host.exe","type":"stdio","allowed_extensions":["${ORIGINKEEP_FIREFOX_EXTENSION_ID}"]}'
   FileClose $0
 
   WriteRegStr HKCU "Software\Microsoft\Edge\NativeMessagingHosts\${ORIGINKEEP_NATIVE_HOST}" "" "$INSTDIR\com.originkeep.host.json"
