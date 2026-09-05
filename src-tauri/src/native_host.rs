@@ -1,4 +1,8 @@
-use crate::{model::DownloadCapture, storage};
+use crate::{
+    model::DownloadCapture,
+    passport::{self, CaptureContext},
+    storage,
+};
 use serde::Serialize;
 use std::io::{self, Read, Write};
 
@@ -10,7 +14,7 @@ struct ErrorResponse {
 
 pub fn run() -> Result<(), String> {
     let database = storage::default_database_path()?;
-    storage::initialize_database(&database)?;
+    passport::initialize_database(&database)?;
     let stdin = io::stdin();
     let stdout = io::stdout();
     let mut reader = stdin.lock();
@@ -41,18 +45,41 @@ pub fn run() -> Result<(), String> {
             .read_exact(&mut payload)
             .map_err(|error| error.to_string())?;
 
-        match serde_json::from_slice::<DownloadCapture>(&payload) {
-            Ok(capture) => match storage::ingest_capture(&database, &capture) {
-                Ok(result) => write_response(&mut writer, &result)?,
+        let value = match serde_json::from_slice::<serde_json::Value>(&payload) {
+            Ok(value) => value,
+            Err(error) => {
+                write_response(
+                    &mut writer,
+                    &ErrorResponse {
+                        ok: false,
+                        error: format!("Invalid capture payload: {error}"),
+                    },
+                )?;
+                continue;
+            }
+        };
+
+        let capture = match serde_json::from_value::<DownloadCapture>(value.clone()) {
+            Ok(capture) => capture,
+            Err(error) => {
+                write_response(
+                    &mut writer,
+                    &ErrorResponse {
+                        ok: false,
+                        error: format!("Invalid capture payload: {error}"),
+                    },
+                )?;
+                continue;
+            }
+        };
+        let context = serde_json::from_value::<CaptureContext>(value).unwrap_or_default();
+
+        match storage::ingest_capture(&database, &capture) {
+            Ok(result) => match passport::record_capture(&database, &capture, &result, &context) {
+                Ok(()) => write_response(&mut writer, &result)?,
                 Err(error) => write_response(&mut writer, &ErrorResponse { ok: false, error })?,
             },
-            Err(error) => write_response(
-                &mut writer,
-                &ErrorResponse {
-                    ok: false,
-                    error: format!("Invalid capture payload: {error}"),
-                },
-            )?,
+            Err(error) => write_response(&mut writer, &ErrorResponse { ok: false, error })?,
         }
     }
 }
