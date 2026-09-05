@@ -3,7 +3,7 @@ use rusqlite::Connection;
 use serde::Serialize;
 use serde_json::Value;
 use std::{
-    fs::{self, File},
+    fs::File,
     io::{Read, Seek, SeekFrom},
     path::{Path, PathBuf},
     process::{Command, Output},

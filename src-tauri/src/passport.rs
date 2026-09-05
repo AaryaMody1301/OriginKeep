@@ -212,11 +212,12 @@ pub fn list_passports(path: &Path) -> Result<Vec<PassportRecord>, String> {
         let mut statement = connection
             .prepare("SELECT id FROM downloads ORDER BY updated_at DESC, id DESC")
             .map_err(|error| error.to_string())?;
-        statement
+        let rows = statement
             .query_map([], |row| row.get::<_, i64>(0))
             .map_err(|error| error.to_string())?
             .collect::<rusqlite::Result<Vec<_>>>()
-            .map_err(|error| error.to_string())?
+            .map_err(|error| error.to_string())?;
+        rows
     };
     ids.into_iter()
         .map(|id| load_passport(&connection, id).map_err(|error| error.to_string()))
@@ -304,7 +305,7 @@ fn load_locations(
     let mut statement = connection.prepare(
         "SELECT path, is_current, first_seen, last_seen FROM file_locations WHERE download_id = ?1 ORDER BY is_current DESC, last_seen DESC, id DESC",
     )?;
-    statement
+    let rows = statement
         .query_map([download_id], |row| {
             Ok(FileLocation {
                 path: row.get(0)?,
@@ -313,7 +314,8 @@ fn load_locations(
                 last_seen: row.get(3)?,
             })
         })?
-        .collect()
+        .collect();
+    rows
 }
 
 pub fn update_metadata(
@@ -803,7 +805,7 @@ pub fn origin_graph(path: &Path) -> Result<OriginGraph, String> {
                 "SELECT id, file_name, original_url, source_identity, version_number, duplicate_of_id, sha256, purpose FROM downloads ORDER BY id ASC",
             )
             .map_err(|error| error.to_string())?;
-        statement
+        let rows = statement
             .query_map([], |row| {
                 Ok((
                     row.get(0)?,
@@ -818,7 +820,8 @@ pub fn origin_graph(path: &Path) -> Result<OriginGraph, String> {
             })
             .map_err(|error| error.to_string())?
             .collect::<rusqlite::Result<Vec<_>>>()
-            .map_err(|error| error.to_string())?
+            .map_err(|error| error.to_string())?;
+        rows
     };
 
     let mut nodes = BTreeMap::<String, OriginNode>::new();
