@@ -1,0 +1,67 @@
+name: Apply remaining OriginKeep 2.0 CI fixes
+
+on:
+  push:
+    branches:
+      - origin-2-universal-file-passport
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: origin-2-universal-file-passport
+          fetch-depth: 0
+
+      - name: Patch platform imports and Clippy lint
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          trust = Path("src-tauri/src/trust.rs")
+          text = trust.read_text()
+
+          needle = "};\n\nconst HEURISTIC_WINDOW"
+          replacement = "};\n\n#[cfg(target_os = \"windows\")]\nuse std::fs;\n\nconst HEURISTIC_WINDOW"
+          if text.count(needle) != 1:
+              raise SystemExit(f"Expected one top-level trust import anchor, found {text.count(needle)}")
+          text = text.replace(needle, replacement, 1)
+
+          needle = "fn command_evidence(\n"
+          replacement = "#[cfg(any(target_os = \"windows\", target_os = \"macos\"))]\nfn command_evidence(\n"
+          if text.count(needle) != 1:
+              raise SystemExit(f"Expected one command_evidence function, found {text.count(needle)}")
+          text = text.replace(needle, replacement, 1)
+
+          needle = "    use std::{\n        env,\n"
+          replacement = "    use std::{\n        env, fs,\n"
+          if text.count(needle) != 1:
+              raise SystemExit(f"Expected one trust test import anchor, found {text.count(needle)}")
+          text = text.replace(needle, replacement, 1)
+          trust.write_text(text)
+
+          passport = Path("src-tauri/src/passport.rs")
+          text = passport.read_text()
+          needle = ".map_or(true, |(existing, _)| version >= *existing);"
+          replacement = ".is_none_or(|(existing, _)| version >= *existing);"
+          if text.count(needle) != 1:
+              raise SystemExit(f"Expected one map_or lint site, found {text.count(needle)}")
+          passport.write_text(text.replace(needle, replacement, 1))
+          PY
+
+      - name: Format, self-remove, and commit
+        shell: bash
+        run: |
+          cargo fmt --manifest-path src-tauri/Cargo.toml
+          git rm .github/workflows/fix-ci-round2.yml
+          git add src-tauri/src/trust.rs src-tauri/src/passport.rs
+          git diff --cached --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Fix remaining OriginKeep 2.0 CI blockers"
+          git push origin HEAD:origin-2-universal-file-passport
