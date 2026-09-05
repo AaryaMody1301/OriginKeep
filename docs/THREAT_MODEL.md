@@ -1,107 +1,162 @@
 # OriginKeep Threat Model
 
-This document covers the local-first OriginKeep desktop application, browser companion, native-message boundary, SQLite metadata store, remote freshness checks and recoverable archive.
+This document covers the local-first OriginKeep desktop application, browser companions, Native Messaging boundary, SQLite Passport store, optional page context, portable passports, remote freshness checks, Trust Lens and recoverable archive.
 
 ## Assets to protect
 
-- Local downloaded files and locally modified copies.
+- Local files and locally modified copies.
 - Download provenance: source URLs, referrers, timestamps and filenames.
-- SHA-256 fingerprints and version lineage.
+- Optional page title/link/nearby-text context and user notes.
+- SHA-256 fingerprints, content locations and version lineage.
 - Remote-check evidence and HTTP validators.
+- Trust Lens observations and configured Sigstore identity policy.
 - The SQLite database and lifecycle ledger.
 - Recoverable archive copies.
+- Portable passport sidecars when the user creates them.
 
 ## Trust boundaries
 
-### Browser extension → native messaging host
+### Browser companion → Native Messaging host
 
-Browser download metadata is untrusted input. The native host treats URLs, filenames and paths as data rather than executable instructions. Native messaging does not grant the extension permission to run arbitrary shell commands.
+Browser metadata and optional page context are untrusted input. Native JSON is bounded to 1 MiB and parsed as data. It never grants the companion a general shell-command interface.
 
-Release-package installs use a deterministic extension ID and a native-host manifest that allows exactly that extension origin. The NSIS installer registers the host for both Edge and Chrome under the current user's registry hive. Wildcard extension origins are not used.
+Chromium release packages use a deterministic extension origin. Firefox uses an explicit Gecko extension ID. Native-host manifests allow only those configured IDs/origins; wildcard extension origins are not used.
+
+Windows NSIS registers Chrome/Edge and Firefox under the current user. macOS/Linux Browser integration copies the bundled host into a stable per-user location and writes browser-specific manifests with absolute executable paths.
+
+### Optional enhanced page context
+
+Enhanced context requires explicit HTTP/HTTPS host permission from the companion popup. The content script bounds page title, URL, clicked text and nearby text before sending it to extension storage/native messaging.
+
+Threats include accidental capture of sensitive nearby text and overly broad browsing collection. Mitigations:
+
+- host permissions are optional and user-triggered;
+- disabling the feature unregisters the content script and removes optional host permissions;
+- context is associated with download events rather than used as a general browsing-history feed;
+- Safari fallback pending context is bounded to 20 records and a 10-minute adoption window;
+- no OriginKeep hosted endpoint receives the context.
 
 ### Native host / desktop → filesystem
 
-Recorded paths may become stale, point to replaced files, or collide with files created after the original download. OriginKeep therefore re-hashes bytes immediately before archival and refuses to overwrite different bytes during restore.
+Recorded paths may become stale, point to replaced files, or collide with files created after the original download. OriginKeep re-hashes bytes before archival and refuses to overwrite different bytes during restore.
+
+Content-location reconnect is hash-gated. A path is added to a content identity only when SHA-256 exactly matches the immutable recorded hash. Similar filenames are not evidence.
+
+### Portable passport → database
+
+A `.originkeep.json` file is user-controlled JSON and is therefore untrusted.
+
+Import mitigations:
+
+- sidecars are limited to 1 MiB;
+- the specification identifier must be recognized;
+- the adjacent file must exist;
+- the adjacent file is hashed locally;
+- import is rejected unless the file hash exactly equals the passport SHA-256.
+
+The portable JSON itself is not a digital signature. URLs, notes and cached trust observations may have been edited. Trust evidence should be refreshed after import.
+
+### Existing-file adoption → provenance
+
+Adoption hashes the actual file first. Windows `Zone.Identifier`, macOS `kMDItemWhereFroms`, Safari fallback context and user-provided URLs are evidence sources of different strengths; OriginKeep does not elevate a filename or path into source provenance.
+
+When no source evidence exists, canonical source identity remains unavailable rather than being guessed.
 
 ### Desktop → remote source
 
 Remote servers and redirects are untrusted. Freshness checks are explicit user actions and use bounded requests. Authentication failures remain `AUTH_REQUIRED`; network errors remain `CHECK_FAILED`; weak or absent validators never become a guessed `CURRENT` result.
 
-Release builds disable automatic HTTP redirect following. Each redirect destination is parsed and validated before a new connection is made. DNS results are resolved before the request, every resolved address must be public, and those approved addresses are pinned into the per-hop HTTP client. Loopback, RFC1918/private, carrier-grade NAT, link-local, documentation, benchmark, multicast/reserved and IPv6 local/private destinations are rejected.
+Automatic HTTP redirect following is disabled. Each redirect destination is parsed and validated before a new connection is made. DNS is resolved before connecting, every resolved address must be public, and approved addresses are pinned into the per-hop HTTP client. Loopback, RFC1918/private, carrier-grade NAT, link-local, documentation, benchmark, multicast/reserved and IPv6 local/private destinations are rejected.
 
-This protects the local machine and LAN from the recorded URL being used as a generic private-network request primitive. DNS rebinding risk is reduced by pinning the validated resolution into the request client for each hop.
+Browser cookies, stored credentials and authenticated session headers are not replayed.
+
+### Trust Lens → external local verifier
+
+Trust Lens separates observations rather than producing one trust score.
+
+- Local SHA-256 is computed in-process.
+- Windows Authenticode uses local PowerShell/Windows signature APIs.
+- C2PA is evaluated only when a local `c2patool` executable is available.
+- Sigstore is evaluated only when an adjacent bundle exists, `cosign` is available, and the user configured an expected certificate identity and OIDC issuer.
+
+External verifier output is bounded before storage/display. Missing tools become `VERIFIER_UNAVAILABLE`; missing Sigstore policy becomes `POLICY_REQUIRED`. OriginKeep does not interpret “unsigned” as “malicious.”
+
+### Safari containing-app bridge
+
+Safari Native Messaging reaches a containing Safari app extension rather than Chrome/Firefox-style native-host discovery. The included Swift bridge forwards bounded JSON to the stable per-user OriginKeep host.
+
+Risks include an absent/replaced local host and generated Xcode project drift. The bridge checks for an executable at the expected per-user location and still relies on the Rust host's message bounds/validation. Public Safari distribution remains an Apple signing/Xcode validation boundary.
 
 ### Application-data archive
 
-The archive is local storage, not an independent backup service. A machine or disk failure can destroy both the original data and the archive. Users should not treat OriginKeep as their only backup for important files.
+The archive is local storage, not an independent backup service. A machine or disk failure can destroy both the original and archive.
 
 ## Destructive-operation threats
 
 ### Deleting a locally edited file
 
-Mitigation: archival requires the current SHA-256 to equal the immutable download fingerprint. A mismatch becomes `LOCAL_MODIFIED` and blocks archival.
+Archival requires the current SHA-256 to equal the immutable download fingerprint. A mismatch becomes `LOCAL_MODIFIED` and blocks archival.
 
 ### Partial copy followed by original deletion
 
-Mitigation: OriginKeep copies first, flushes the destination, re-hashes it and compares the full SHA-256 before removing the original.
+OriginKeep copies first, flushes the destination, re-hashes it and compares full SHA-256 before removing the original.
 
 ### Restore overwrites unrelated data
 
-Mitigation: if the original path exists with a different SHA-256, restore fails. OriginKeep does not use a force-overwrite option.
+If the original path exists with a different SHA-256, restore fails. No force-overwrite path is provided.
 
 ### Crash during archive or restore
 
-Mitigation: lifecycle state is persisted as `ARCHIVING` or `RESTORING` before filesystem mutation. Startup reconciliation checks which verified copy survives and chooses an evidence-backed state.
+Lifecycle state is persisted as `ARCHIVING` or `RESTORING` before filesystem mutation. Startup reconciliation checks which verified copy survives and chooses an evidence-backed state.
 
-### Filename/path collision in the archive
+### Archive collision
 
-Mitigation: archive names include the database record ID and a SHA-256 prefix in addition to a sanitized display filename. An existing archive path with different bytes is treated as a collision and the operation stops.
+Archive names include record ID and a SHA-256 prefix. Existing different bytes cause a hard failure.
 
 ## Provenance threats
 
 ### Signed or expiring download URLs
 
-OriginKeep keeps initiating/canonical source identity distinct from freshness evidence. A failed or expired final asset URL must not erase the original provenance record.
+OriginKeep keeps initiating/canonical source identity distinct from final URL/freshness evidence. Expiration never erases historical provenance.
 
-### Filename-based version guessing
+### Filename-based identity/version guessing
 
-OriginKeep does not infer equality or version lineage from names such as `final`, `(1)` or `new`. Exact equality requires SHA-256; source-family versioning uses canonical provenance plus content evidence.
+Names such as `final`, `(1)` and `new` are not evidence. Exact equality requires SHA-256; version lineage requires canonical provenance plus content evidence.
 
 ### False freshness claims
 
-Equal size alone does not prove `CURRENT`. A first metadata-only remote check establishes a baseline as `SOURCE_UNKNOWN`. `CURRENT` requires evidence such as HTTP 304 or an unchanged stored validator.
+Equal size alone does not prove `CURRENT`. A first metadata-only remote check establishes/refreshes evidence without claiming freshness. `CURRENT` requires stronger evidence such as HTTP 304 or an unchanged stored validator.
 
-## Network and privacy threats
+### False authenticity claims
 
-- Core features require no account or hosted OriginKeep backend.
-- Local files are not uploaded for hashing, comparison, cleanup or restore.
-- Freshness checks contact only a validated recorded public HTTP(S) source after an explicit user action.
-- OriginKeep v0.1 does not collect browser cookies or persist authenticated web sessions.
-- Remote responses are metadata evidence and are not interpreted as executable code by the lifecycle engine.
-- Embedded URL credentials are rejected by the hardened freshness path.
-
-See [`PRIVACY.md`](../PRIVACY.md) for the user-facing data-handling policy.
+C2PA, Authenticode and Sigstore are evidence about signatures/credentials, not declarations that content is factually true or safe. OriginKeep displays the observation type/state independently.
 
 ## Release supply-chain threats
 
-GitHub Actions builds the Windows installer from repository source. Release workflows use least-privilege permissions needed for draft-release creation and artifact attestation. Third-party actions are pinned to full commit SHAs so the reviewed workflow does not silently follow a moved tag.
+GitHub Actions builds platform bundles from repository source with frozen npm/Cargo resolution. Third-party actions are pinned to full commit SHAs.
 
-The Windows installer bundles `originkeep-native-host.exe` as a Tauri external binary and creates/removes the browser native-messaging registration through NSIS hooks. The release workflow also packages the companion extension from the same tagged source.
+CI produces:
 
-Artifact attestation is not Windows code signing and is not a guarantee that a binary is vulnerability-free. Public distribution should configure project-owned Windows signing credentials and review the draft installer before publication.
+- Windows NSIS and browser packages;
+- Linux AppImage and Debian package;
+- macOS app/DMG smoke build with ad-hoc signing.
 
-The repository must never commit private signing keys, certificate passwords, browser credentials or access tokens.
+Release artifact attestations establish GitHub build provenance but do not replace platform code signing or security review.
 
-## Residual risks / v0.1 limitations
+Public Windows/macOS/Safari distribution still requires project-owned signing/notarization credentials where applicable. The repository must never commit private signing keys, certificate passwords, browser credentials or access tokens.
 
-- The local archive shares the same machine and usually the same disk as the Downloads folder; it is recoverable cleanup, not disaster recovery.
-- Filesystem permissions, antivirus software or concurrent external file changes can interrupt an operation. The lifecycle ledger is designed to detect and surface those cases rather than hide them.
+## Residual risks
+
+- The local archive usually shares the same physical device as the original; it is not disaster recovery.
+- Concurrent external file changes or filesystem/AV policy can interrupt lifecycle operations.
 - Authenticated/expiring remote sources may remain unverifiable without user-mediated access.
-- PDF comparison covers extracted text layers only; it does not prove visual/layout equivalence.
+- PDF comparison covers extracted text layers only, not visual/layout equivalence.
+- C2PA/Sigstore tools are optional and their output/trust stores have their own upstream security models.
 - OriginKeep does not provide malware detection or sandbox untrusted documents.
-- The deterministic companion ID is for the repository/release package. Browser-store publication must update `allowed_origins` if a store assigns a different ID.
-- Unsigned Windows release candidates can still trigger Windows reputation warnings until project-owned code signing is configured.
+- Browser-store IDs can differ from development/package IDs and require allowlist updates before store publication.
+- Safari automatic download parity is intentionally not claimed where Safari lacks the equivalent API.
+- Unsigned or ad-hoc-signed development/release-candidate binaries can trigger OS trust warnings.
 
 ## Security rule
 
-When OriginKeep cannot prove that a destructive lifecycle operation is safe from locally available evidence, the operation must fail closed and preserve whichever verified copy still exists.
+When OriginKeep cannot prove that a destructive lifecycle operation is safe from locally available evidence, it must fail closed and preserve whichever verified copy still exists.
