@@ -46,6 +46,7 @@ async function recentClickContext(item) {
 }
 
 async function matchingTabContext(item) {
+  if (!api.tabs?.query) return null;
   try {
     const tabs = await api.tabs.query({});
     const referrer = comparableUrl(item.referrer || "");
@@ -116,16 +117,21 @@ api.runtime.onMessage.addListener((message, sender) => {
     capturedAt: Date.now(),
     tabId: sender.tab?.id ?? null,
   };
-  return api.storage.local.set({ recentDownloadContext: context });
+  void api.storage.local.set({ recentDownloadContext: context });
+  return undefined;
 });
 
-api.downloads.onCreated.addListener((item) => {
-  void sendCapture(item);
-});
-
-api.downloads.onChanged.addListener((delta) => {
-  if (!delta.state || !["complete", "interrupted"].includes(delta.state.current)) return;
-  api.downloads.search({ id: delta.id }).then(([item]) => {
-    if (item) void sendCapture(item);
+if (api.downloads?.onCreated && api.downloads?.onChanged && api.downloads?.search) {
+  api.downloads.onCreated.addListener((item) => {
+    void sendCapture(item);
   });
-});
+
+  api.downloads.onChanged.addListener((delta) => {
+    if (!delta.state || !["complete", "interrupted"].includes(delta.state.current)) return;
+    api.downloads.search({ id: delta.id }).then(([item]) => {
+      if (item) void sendCapture(item);
+    });
+  });
+} else {
+  console.info("OriginKeep: automatic download capture is unavailable in this browser; use File Passport adoption instead.");
+}
