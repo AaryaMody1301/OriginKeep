@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { copyFileSync, mkdirSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 const release = process.argv.includes("--release");
@@ -13,6 +13,18 @@ if (!targetTriple) {
   throw new Error("rustc did not report a host target triple");
 }
 
+const outputDirectory = join("src-tauri", "binaries");
+const destination = join(
+  outputDirectory,
+  `originkeep-native-host-${targetTriple}${extension}`,
+);
+mkdirSync(outputDirectory, { recursive: true });
+
+// Tauri's compile-time context validates configured bundle assets. A generated,
+// ignored placeholder breaks the build-order cycle before Cargo produces the
+// real native host, and is always replaced after a successful build.
+if (!existsSync(destination)) writeFileSync(destination, "");
+
 const cargoArgs = [
   "build",
   "--manifest-path",
@@ -21,7 +33,6 @@ const cargoArgs = [
   "originkeep-native-host",
 ];
 if (release) cargoArgs.push("--release");
-
 execFileSync("cargo", cargoArgs, { stdio: "inherit" });
 
 const source = join(
@@ -30,12 +41,5 @@ const source = join(
   profile,
   `originkeep-native-host${extension}`,
 );
-const outputDirectory = join("src-tauri", "binaries");
-const destination = join(
-  outputDirectory,
-  `originkeep-native-host-${targetTriple}${extension}`,
-);
-
-mkdirSync(outputDirectory, { recursive: true });
 copyFileSync(source, destination);
 console.log(`Prepared OriginKeep native host sidecar: ${destination}`);
