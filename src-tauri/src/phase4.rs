@@ -231,13 +231,15 @@ fn classify_download(
         (
             false,
             "PROTECT".to_string(),
-            "Local bytes no longer match the recorded download fingerprint; cleanup is blocked.".to_string(),
+            "Local bytes no longer match the recorded download fingerprint; cleanup is blocked."
+                .to_string(),
         )
     } else if download.local_state == "LOCAL_MISSING" {
         (
             false,
             "MISSING".to_string(),
-            "The original local path is already missing; no cleanup action is proposed.".to_string(),
+            "The original local path is already missing; no cleanup action is proposed."
+                .to_string(),
         )
     } else if download.sha256.is_none() {
         (
@@ -269,7 +271,8 @@ fn classify_download(
         (
             false,
             "KEEP".to_string(),
-            "No deterministic cleanup rule selects this file under the current retention policy.".to_string(),
+            "No deterministic cleanup rule selects this file under the current retention policy."
+                .to_string(),
         )
     };
 
@@ -336,7 +339,9 @@ pub fn archive_download(path: &Path, download_id: i64) -> Result<LifecycleItem, 
                 [download_id],
             )
             .map_err(|error| error.to_string())?;
-        return Err("Archive blocked because the local bytes differ from the recorded SHA-256".into());
+        return Err(
+            "Archive blocked because the local bytes differ from the recorded SHA-256".into(),
+        );
     }
 
     let archive_path = archive_path_for(path, &download.file_name, download_id, expected_hash)?;
@@ -347,7 +352,9 @@ pub fn archive_download(path: &Path, download_id: i64) -> Result<LifecycleItem, 
         let existing_hash = crate::storage::sha256_file(&archive_path)
             .map_err(|error| format!("Could not verify the existing archive file: {error}"))?;
         if existing_hash != expected_hash {
-            return Err("Archive collision: an existing archive path contains different bytes".into());
+            return Err(
+                "Archive collision: an existing archive path contains different bytes".into(),
+            );
         }
         fs::remove_file(&archive_path).map_err(|error| error.to_string())?;
     }
@@ -436,7 +443,9 @@ pub fn restore_download(path: &Path, download_id: i64) -> Result<LifecycleItem, 
     let archive_hash = crate::storage::sha256_file(&archive_path)
         .map_err(|error| format!("Could not verify the archive copy: {error}"))?;
     if archive_hash != expected_hash {
-        return Err("Restore blocked because the archive bytes do not match the recorded SHA-256".into());
+        return Err(
+            "Restore blocked because the archive bytes do not match the recorded SHA-256".into(),
+        );
     }
 
     let original_path = PathBuf::from(&download.local_path);
@@ -469,7 +478,8 @@ pub fn restore_download(path: &Path, download_id: i64) -> Result<LifecycleItem, 
         }
     }
     if let Err(error) = fs::remove_file(&archive_path) {
-        let message = format!("Restored the original bytes but could not remove the archive copy: {error}");
+        let message =
+            format!("Restored the original bytes but could not remove the archive copy: {error}");
         mark_lifecycle_error(&connection, download_id, "RESTORING", &message)?;
         return Err(message);
     }
@@ -838,7 +848,15 @@ mod tests {
         let latest_path = unique_path("report-latest.txt");
         fs::write(&latest_path, b"version two").unwrap();
         let latest_hash = crate::storage::sha256_file(&latest_path).unwrap();
-        seed_download(&connection, 2, &latest_path, &latest_hash, "SOURCE_UNKNOWN", 2, None);
+        seed_download(
+            &connection,
+            2,
+            &latest_path,
+            &latest_hash,
+            "SOURCE_UNKNOWN",
+            2,
+            None,
+        );
         drop(connection);
 
         let archived = archive_download(&database_path, 1).unwrap();
@@ -865,7 +883,15 @@ mod tests {
         let original_path = unique_path("collision.txt");
         fs::write(&original_path, b"tracked bytes").unwrap();
         let hash = crate::storage::sha256_file(&original_path).unwrap();
-        seed_download(&connection, 1, &original_path, &hash, "DUPLICATE", 1, Some(99));
+        seed_download(
+            &connection,
+            1,
+            &original_path,
+            &hash,
+            "DUPLICATE",
+            1,
+            Some(99),
+        );
         drop(connection);
 
         archive_download(&database_path, 1).unwrap();
