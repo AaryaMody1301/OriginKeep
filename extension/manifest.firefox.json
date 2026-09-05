@@ -1,0 +1,28 @@
+{
+  "manifest_version": 3,
+  "name": "OriginKeep Companion",
+  "version": "0.2.0",
+  "description": "Captures browser download provenance and optional page context for the local OriginKeep desktop app.",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "originkeep@originkeep.app",
+      "strict_min_version": "121.0"
+    }
+  },
+  "permissions": ["downloads", "nativeMessaging", "tabs", "storage", "scripting"],
+  "optional_host_permissions": ["http://*/*", "https://*/*"],
+  "background": {
+    "scripts": ["service-worker.js"]
+  },
+  "action": {
+    "default_title": "OriginKeep Companion",
+    "default_popup": "popup.html",
+    "default_icon": "icon.png"
+  },
+  "icons": {
+    "16": "icon.png",
+    "32": "icon.png",
+    "48": "icon.png",
+    "128": "icon.png"
+  }
+}
