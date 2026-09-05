@@ -27,6 +27,7 @@ if (!existsSync(destination)) writeFileSync(destination, "");
 
 const cargoArgs = [
   "build",
+  "--locked",
   "--manifest-path",
   "src-tauri/Cargo.toml",
   "--bin",
