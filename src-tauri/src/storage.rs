@@ -94,7 +94,9 @@ fn add_column_if_missing(
     definition: &str,
 ) -> rusqlite::Result<()> {
     if !column_exists(connection, name)? {
-        connection.execute_batch(&format!("ALTER TABLE downloads ADD COLUMN {name} {definition};"))?;
+        connection.execute_batch(&format!(
+            "ALTER TABLE downloads ADD COLUMN {name} {definition};"
+        ))?;
     }
     Ok(())
 }
@@ -113,9 +115,8 @@ fn column_exists(connection: &Connection, name: &str) -> rusqlite::Result<bool> 
 
 fn backfill_phase2_metadata(connection: &Connection) -> rusqlite::Result<()> {
     let records = {
-        let mut statement = connection.prepare(
-            "SELECT id, original_url, final_url, sha256 FROM downloads ORDER BY id ASC",
-        )?;
+        let mut statement = connection
+            .prepare("SELECT id, original_url, final_url, sha256 FROM downloads ORDER BY id ASC")?;
         statement
             .query_map([], |row| {
                 Ok((
@@ -156,8 +157,7 @@ pub fn canonicalize_source_url(value: &str) -> Option<String> {
 }
 
 fn source_identity(original_url: &str, final_url: Option<&str>) -> Option<String> {
-    canonicalize_source_url(original_url)
-        .or_else(|| final_url.and_then(canonicalize_source_url))
+    canonicalize_source_url(original_url).or_else(|| final_url.and_then(canonicalize_source_url))
 }
 
 pub fn sha256_file(path: &Path) -> io::Result<String> {
@@ -249,11 +249,10 @@ fn ingest_capture_with_connection(
         |row| row.get(0),
     )?;
 
-    let effective_hash: Option<String> = connection.query_row(
-        "SELECT sha256 FROM downloads WHERE id = ?1",
-        [id],
-        |row| row.get(0),
-    )?;
+    let effective_hash: Option<String> =
+        connection.query_row("SELECT sha256 FROM downloads WHERE id = ?1", [id], |row| {
+            row.get(0)
+        })?;
 
     if let Some(hash) = effective_hash.as_deref() {
         assign_version_metadata(connection, id, hash)?;
@@ -444,7 +443,9 @@ pub fn verify_local_files(path: &Path) -> Result<VerificationSummary, String> {
     verify_local_files_with_connection(&connection).map_err(|error| error.to_string())
 }
 
-fn verify_local_files_with_connection(connection: &Connection) -> rusqlite::Result<VerificationSummary> {
+fn verify_local_files_with_connection(
+    connection: &Connection,
+) -> rusqlite::Result<VerificationSummary> {
     initialize_connection(connection)?;
     let records = {
         let mut statement = connection.prepare("SELECT id, local_path, sha256 FROM downloads")?;
@@ -525,7 +526,9 @@ mod tests {
             local_path: path.display().to_string(),
             file_name: path.file_name().unwrap().to_string_lossy().into_owned(),
             mime_type: Some("application/pdf".into()),
-            bytes: fs::metadata(path).ok().map(|metadata| metadata.len() as i64),
+            bytes: fs::metadata(path)
+                .ok()
+                .map(|metadata| metadata.len() as i64),
             started_at: Some("2026-09-05T00:00:00Z".into()),
             completed_at: Some("2026-09-05T00:00:01Z".into()),
             state: "complete".into(),
@@ -547,8 +550,10 @@ mod tests {
     #[test]
     fn canonicalization_is_conservative_and_deterministic() {
         assert_eq!(
-            canonicalize_source_url("HTTPS://User:Pass@Example.COM:443/report.pdf?token=abc#page=2")
-                .as_deref(),
+            canonicalize_source_url(
+                "HTTPS://User:Pass@Example.COM:443/report.pdf?token=abc#page=2"
+            )
+            .as_deref(),
             Some("https://example.com/report.pdf?token=abc")
         );
         assert_ne!(
@@ -571,12 +576,20 @@ mod tests {
 
         let first = ingest_capture_with_connection(
             &connection,
-            &capture("capture-1", "https://example.com/report.pdf#one", &first_path),
+            &capture(
+                "capture-1",
+                "https://example.com/report.pdf#one",
+                &first_path,
+            ),
         )
         .unwrap();
         let duplicate = ingest_capture_with_connection(
             &connection,
-            &capture("capture-2", "https://example.com/report.pdf#two", &duplicate_path),
+            &capture(
+                "capture-2",
+                "https://example.com/report.pdf#two",
+                &duplicate_path,
+            ),
         )
         .unwrap();
         let changed = ingest_capture_with_connection(
