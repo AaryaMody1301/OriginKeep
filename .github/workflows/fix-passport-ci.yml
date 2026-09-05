@@ -1,0 +1,128 @@
+name: Apply Passport CI fix
+
+on:
+  push:
+    branches:
+      - origin-2-universal-file-passport
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: origin-2-universal-file-passport
+          fetch-depth: 0
+
+      - name: Apply exact Rust fixes
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('src-tauri/src/passport.rs')
+          text = path.read_text()
+          replacements = [
+              (
+                  '''        statement
+            .query_map([], |row| row.get::<_, i64>(0))
+            .map_err(|error| error.to_string())?
+            .collect::<rusqlite::Result<Vec<_>>>()
+            .map_err(|error| error.to_string())?
+''',
+                  '''        let rows = statement
+            .query_map([], |row| row.get::<_, i64>(0))
+            .map_err(|error| error.to_string())?;
+        rows.collect::<rusqlite::Result<Vec<_>>>()
+            .map_err(|error| error.to_string())?
+''',
+              ),
+              (
+                  '''    statement
+        .query_map([download_id], |row| {
+            Ok(FileLocation {
+                path: row.get(0)?,
+                is_current: row.get::<_, i64>(1)? != 0,
+                first_seen: row.get(2)?,
+                last_seen: row.get(3)?,
+            })
+        })?
+        .collect()
+''',
+                  '''    let rows = statement.query_map([download_id], |row| {
+        Ok(FileLocation {
+            path: row.get(0)?,
+            is_current: row.get::<_, i64>(1)? != 0,
+            first_seen: row.get(2)?,
+            last_seen: row.get(3)?,
+        })
+    })?;
+    rows.collect()
+''',
+              ),
+              (
+                  '''        statement
+            .query_map([], |row| {
+                Ok((
+                    row.get(0)?,
+                    row.get(1)?,
+                    row.get(2)?,
+                    row.get(3)?,
+                    row.get(4)?,
+                    row.get(5)?,
+                    row.get(6)?,
+                    row.get(7)?,
+                ))
+            })
+            .map_err(|error| error.to_string())?
+            .collect::<rusqlite::Result<Vec<_>>>()
+            .map_err(|error| error.to_string())?
+''',
+                  '''        let rows = statement
+            .query_map([], |row| {
+                Ok((
+                    row.get(0)?,
+                    row.get(1)?,
+                    row.get(2)?,
+                    row.get(3)?,
+                    row.get(4)?,
+                    row.get(5)?,
+                    row.get(6)?,
+                    row.get(7)?,
+                ))
+            })
+            .map_err(|error| error.to_string())?;
+        rows.collect::<rusqlite::Result<Vec<_>>>()
+            .map_err(|error| error.to_string())?
+''',
+              ),
+          ]
+          for old, new in replacements:
+              if text.count(old) != 1:
+                  raise SystemExit(f'Expected exactly one Passport replacement, found {text.count(old)}')
+              text = text.replace(old, new, 1)
+          path.write_text(text)
+
+          trust = Path('src-tauri/src/trust.rs')
+          trust_text = trust.read_text()
+          old = '    fs::{self, File},\n'
+          new = '    fs::File,\n'
+          if trust_text.count(old) != 1:
+              raise SystemExit('Expected exactly one trust import replacement')
+          trust.write_text(trust_text.replace(old, new, 1))
+          PY
+
+      - name: Format and commit
+        shell: bash
+        run: |
+          cargo fmt --manifest-path src-tauri/Cargo.toml
+          git rm .github/workflows/diagnose-sidecar.yml .github/workflows/fix-passport-ci.yml
+          git add src-tauri/src/passport.rs src-tauri/src/trust.rs
+          git diff --cached --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Fix OriginKeep 2.0 Rust CI blockers"
+          git push origin HEAD:origin-2-universal-file-passport
