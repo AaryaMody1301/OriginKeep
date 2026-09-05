@@ -1,3 +1,4 @@
+mod browser_setup;
 mod model;
 pub mod native_host;
 mod passport;
@@ -6,6 +7,7 @@ mod phase4;
 mod secure_remote;
 mod storage;
 
+use browser_setup::BrowserSetupResult;
 use model::{DownloadRecord, VerificationSummary};
 use passport::{
     FilePassport, LocationRefreshSummary, OriginGraph, PassportExportResult, PassportSummary,
@@ -163,6 +165,11 @@ fn origin_graph(state: tauri::State<'_, AppState>) -> Result<OriginGraph, String
     passport::origin_graph(&state.database_path)
 }
 
+#[tauri::command]
+fn install_browser_integration() -> Result<BrowserSetupResult, String> {
+    browser_setup::install_browser_integration()
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let database_path = storage::default_database_path()
@@ -191,7 +198,8 @@ pub fn run() {
             reconnect_file,
             refresh_locations,
             refresh_trust,
-            origin_graph
+            origin_graph,
+            install_browser_integration
         ])
         .run(tauri::generate_context!())
         .expect("error while running OriginKeep");
