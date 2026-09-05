@@ -921,7 +921,7 @@ pub fn origin_graph(path: &Path) -> Result<OriginGraph, String> {
             if duplicate_of_id.is_none() {
                 let replace = last_version_by_source
                     .get(&source_value)
-                    .map_or(true, |(existing, _)| version >= *existing);
+                    .is_none_or(|(existing, _)| version >= *existing);
                 if replace {
                     last_version_by_source.insert(source_value, (version, file_id));
                 }

@@ -9,6 +9,9 @@ use std::{
     process::{Command, Output},
 };
 
+#[cfg(target_os = "windows")]
+use std::fs;
+
 const HEURISTIC_WINDOW: u64 = 2 * 1024 * 1024;
 
 #[derive(Debug, Clone, Serialize)]
@@ -442,6 +445,7 @@ fn find_sigstore_bundle(file_path: &Path) -> Option<PathBuf> {
     sibling.is_file().then_some(sibling)
 }
 
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 fn command_evidence(
     output: Result<Output, std::io::Error>,
     success_state: &str,
@@ -492,7 +496,7 @@ fn nonempty(value: String) -> Option<String> {
 mod tests {
     use super::*;
     use std::{
-        env,
+        env, fs,
         time::{SystemTime, UNIX_EPOCH},
     };
 
