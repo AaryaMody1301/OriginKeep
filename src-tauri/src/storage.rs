@@ -30,6 +30,15 @@ CREATE TABLE IF NOT EXISTS downloads (
     version_number INTEGER,
     duplicate_of_id INTEGER,
     local_state TEXT NOT NULL DEFAULT 'PRESENT',
+    page_title TEXT,
+    page_url TEXT,
+    link_text TEXT,
+    context_text TEXT,
+    browser_name TEXT,
+    user_note TEXT,
+    purpose TEXT,
+    expires_at TEXT,
+    retention_action TEXT NOT NULL DEFAULT 'REVIEW',
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -65,6 +74,7 @@ fn initialize_connection(connection: &Connection) -> rusqlite::Result<()> {
     if version < 2 {
         migrate_to_phase2(connection)?;
     }
+    migrate_universal_columns(connection)?;
     Ok(())
 }
 
@@ -85,6 +95,30 @@ fn migrate_to_phase2(connection: &Connection) -> rusqlite::Result<()> {
 
     backfill_phase2_metadata(connection)?;
     connection.execute_batch("PRAGMA user_version = 2;")?;
+    Ok(())
+}
+
+fn migrate_universal_columns(connection: &Connection) -> rusqlite::Result<()> {
+    add_column_if_missing(connection, "page_title", "TEXT")?;
+    add_column_if_missing(connection, "page_url", "TEXT")?;
+    add_column_if_missing(connection, "link_text", "TEXT")?;
+    add_column_if_missing(connection, "context_text", "TEXT")?;
+    add_column_if_missing(connection, "browser_name", "TEXT")?;
+    add_column_if_missing(connection, "user_note", "TEXT")?;
+    add_column_if_missing(connection, "purpose", "TEXT")?;
+    add_column_if_missing(connection, "expires_at", "TEXT")?;
+    add_column_if_missing(
+        connection,
+        "retention_action",
+        "TEXT NOT NULL DEFAULT 'REVIEW'",
+    )?;
+    connection.execute_batch(
+        r#"
+        CREATE INDEX IF NOT EXISTS idx_downloads_source_identity ON downloads(source_identity);
+        CREATE INDEX IF NOT EXISTS idx_downloads_duplicate_of_id ON downloads(duplicate_of_id);
+        CREATE INDEX IF NOT EXISTS idx_downloads_purpose ON downloads(purpose);
+        "#,
+    )?;
     Ok(())
 }
 
@@ -207,8 +241,12 @@ fn ingest_capture_with_connection(
         INSERT INTO downloads (
             capture_key, browser_download_id, original_url, final_url, referrer,
             local_path, file_name, mime_type, bytes, started_at, completed_at,
-            sha256, status, browser_state, source_identity, local_state
-        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, 'SOURCE_UNKNOWN', ?13, ?14, ?15)
+            sha256, status, browser_state, source_identity, local_state,
+            page_title, page_url, link_text, context_text, browser_name
+        ) VALUES (
+            ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11,
+            ?12, 'SOURCE_UNKNOWN', ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20
+        )
         ON CONFLICT(capture_key) DO UPDATE SET
             original_url = excluded.original_url,
             final_url = excluded.final_url,
@@ -223,6 +261,11 @@ fn ingest_capture_with_connection(
             browser_state = excluded.browser_state,
             source_identity = COALESCE(excluded.source_identity, downloads.source_identity),
             local_state = excluded.local_state,
+            page_title = COALESCE(excluded.page_title, downloads.page_title),
+            page_url = COALESCE(excluded.page_url, downloads.page_url),
+            link_text = COALESCE(excluded.link_text, downloads.link_text),
+            context_text = COALESCE(excluded.context_text, downloads.context_text),
+            browser_name = COALESCE(excluded.browser_name, downloads.browser_name),
             updated_at = CURRENT_TIMESTAMP
         "#,
         params![
@@ -241,6 +284,11 @@ fn ingest_capture_with_connection(
             capture.state,
             identity,
             local_state,
+            capture.page_title,
+            capture.page_url,
+            capture.link_text,
+            capture.context_text,
+            capture.browser_name,
         ],
     )?;
 
@@ -383,31 +431,44 @@ fn list_downloads_with_connection(
     let normalized = query.map(str::trim).filter(|value| !value.is_empty());
     let search = normalized.map(|value| format!("%{value}%"));
 
+    let fields = r#"
+        id, capture_key, original_url, final_url, referrer, local_path,
+        file_name, mime_type, bytes, started_at, completed_at, sha256,
+        status, source_identity, version_number, duplicate_of_id, local_state,
+        page_title, page_url, link_text, context_text, browser_name,
+        user_note, purpose, expires_at, retention_action, updated_at
+    "#;
     let sql = if search.is_some() {
-        r#"
-        SELECT id, capture_key, original_url, final_url, referrer, local_path,
-               file_name, mime_type, bytes, started_at, completed_at, sha256,
-               status, source_identity, version_number, duplicate_of_id, local_state, updated_at
-        FROM downloads
-        WHERE file_name LIKE ?1
-           OR original_url LIKE ?1
-           OR COALESCE(final_url, '') LIKE ?1
-           OR COALESCE(referrer, '') LIKE ?1
-           OR COALESCE(sha256, '') LIKE ?1
-           OR COALESCE(source_identity, '') LIKE ?1
-        ORDER BY updated_at DESC, id DESC
-        "#
+        format!(
+            r#"
+            SELECT {fields}
+            FROM downloads
+            WHERE file_name LIKE ?1
+               OR original_url LIKE ?1
+               OR COALESCE(final_url, '') LIKE ?1
+               OR COALESCE(referrer, '') LIKE ?1
+               OR COALESCE(sha256, '') LIKE ?1
+               OR COALESCE(source_identity, '') LIKE ?1
+               OR COALESCE(page_title, '') LIKE ?1
+               OR COALESCE(page_url, '') LIKE ?1
+               OR COALESCE(link_text, '') LIKE ?1
+               OR COALESCE(context_text, '') LIKE ?1
+               OR COALESCE(user_note, '') LIKE ?1
+               OR COALESCE(purpose, '') LIKE ?1
+            ORDER BY updated_at DESC, id DESC
+            "#
+        )
     } else {
-        r#"
-        SELECT id, capture_key, original_url, final_url, referrer, local_path,
-               file_name, mime_type, bytes, started_at, completed_at, sha256,
-               status, source_identity, version_number, duplicate_of_id, local_state, updated_at
-        FROM downloads
-        ORDER BY updated_at DESC, id DESC
-        "#
+        format!(
+            r#"
+            SELECT {fields}
+            FROM downloads
+            ORDER BY updated_at DESC, id DESC
+            "#
+        )
     };
 
-    let mut statement = connection.prepare(sql)?;
+    let mut statement = connection.prepare(&sql)?;
     let mapper = |row: &rusqlite::Row<'_>| {
         Ok(DownloadRecord {
             id: row.get(0)?,
@@ -427,7 +488,16 @@ fn list_downloads_with_connection(
             version_number: row.get(14)?,
             duplicate_of_id: row.get(15)?,
             local_state: row.get(16)?,
-            updated_at: row.get(17)?,
+            page_title: row.get(17)?,
+            page_url: row.get(18)?,
+            link_text: row.get(19)?,
+            context_text: row.get(20)?,
+            browser_name: row.get(21)?,
+            user_note: row.get(22)?,
+            purpose: row.get(23)?,
+            expires_at: row.get(24)?,
+            retention_action: row.get(25)?,
+            updated_at: row.get(26)?,
         })
     };
 
@@ -534,6 +604,11 @@ mod tests {
             started_at: Some("2026-09-05T00:00:00Z".into()),
             completed_at: Some("2026-09-05T00:00:01Z".into()),
             state: "complete".into(),
+            page_title: Some("Reports".into()),
+            page_url: Some("https://example.com/reports".into()),
+            link_text: Some("Download report".into()),
+            context_text: Some("Annual report".into()),
+            browser_name: Some("test".into()),
         }
     }
 
@@ -612,6 +687,7 @@ mod tests {
         assert_eq!(duplicate.status, "DUPLICATE");
         assert_eq!(changed.version_number, Some(2));
         assert_eq!(first_row.status, "SUPERSEDED");
+        assert_eq!(first_row.page_title.as_deref(), Some("Reports"));
     }
 
     #[test]
