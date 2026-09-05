@@ -1,7 +1,6 @@
 name: Publish Windows
 
 on:
-  workflow_dispatch:
   push:
     tags:
       - "v*"
@@ -15,18 +14,29 @@ jobs:
   publish-windows:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: 22
 
+      - name: Validate release tag
+        shell: pwsh
+        run: |
+          $version = (Get-Content package.json | ConvertFrom-Json).version
+          if (-not $env:GITHUB_REF_NAME.StartsWith("v$version")) {
+            throw "Tag $env:GITHUB_REF_NAME does not match package version $version"
+          }
+
       - name: Install Rust stable
-        uses: dtolnay/rust-toolchain@stable
+        shell: pwsh
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
 
       - name: Cache Rust build artifacts
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
         with:
           workspaces: src-tauri
 
@@ -37,21 +47,39 @@ jobs:
         run: npm run icons
 
       - name: Build Windows installer and create draft release
-        uses: tauri-apps/tauri-action@v1
+        uses: tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tagName: v__VERSION__
-          releaseName: "OriginKeep v__VERSION__"
+          tagName: ${{ github.ref_name }}
+          releaseName: "OriginKeep ${{ github.ref_name }}"
           releaseBody: |
-            Windows x64 NSIS build produced by the OriginKeep release workflow.
+            Windows x64 NSIS build and OriginKeep browser companion produced from the same tagged source.
 
-            This release remains a draft until the installer has been reviewed and, for public distribution, Windows code signing has been configured with project-owned signing credentials.
+            This release remains a draft until the clean Windows release checklist in docs/RELEASE.md has been completed. Unsigned installers can trigger Windows reputation warnings; GitHub artifact attestations establish build provenance but do not replace Authenticode signing or a security review.
           releaseDraft: true
-          prerelease: false
+          prerelease: ${{ contains(github.ref_name, '-') }}
           args: --bundles nsis
 
+      - name: Package browser companion
+        shell: pwsh
+        run: |
+          $asset = "OriginKeep-Companion-$env:GITHUB_REF_NAME.zip"
+          Compress-Archive -Path extension\* -DestinationPath $asset -Force
+          "COMPANION_ASSET=$asset" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Upload companion to draft release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload $env:GITHUB_REF_NAME $env:COMPANION_ASSET --clobber
+
       - name: Attest NSIS installer provenance
-        uses: actions/attest@v4
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6
         with:
           subject-path: "src-tauri/target/release/bundle/nsis/*.exe"
+
+      - name: Attest companion package provenance
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6
+        with:
+          subject-path: "${{ env.COMPANION_ASSET }}"
