@@ -1,7 +1,7 @@
 use crate::{
     model::DownloadCapture,
     passport::{self, CaptureContext},
-    storage,
+    pending_context, storage,
 };
 use serde::Serialize;
 use std::io::{self, Read, Write};
@@ -15,6 +15,7 @@ struct ErrorResponse {
 pub fn run() -> Result<(), String> {
     let database = storage::default_database_path()?;
     passport::initialize_database(&database)?;
+    pending_context::initialize_database(&database)?;
     let stdin = io::stdin();
     let stdout = io::stdout();
     let mut reader = stdin.lock();
@@ -58,6 +59,17 @@ pub fn run() -> Result<(), String> {
                 continue;
             }
         };
+
+        if value.get("messageType").and_then(serde_json::Value::as_str)
+            == Some("contextObservation")
+        {
+            let context = serde_json::from_value::<CaptureContext>(value).unwrap_or_default();
+            match pending_context::record(&database, &context) {
+                Ok(()) => write_response(&mut writer, &serde_json::json!({ "ok": true }))?,
+                Err(error) => write_response(&mut writer, &ErrorResponse { ok: false, error })?,
+            }
+            continue;
+        }
 
         let capture = match serde_json::from_value::<DownloadCapture>(value.clone()) {
             Ok(capture) => capture,
