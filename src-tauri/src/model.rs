@@ -33,6 +33,10 @@ pub struct DownloadRecord {
     pub completed_at: Option<String>,
     pub sha256: Option<String>,
     pub status: String,
+    pub source_identity: Option<String>,
+    pub version_number: Option<i64>,
+    pub duplicate_of_id: Option<i64>,
+    pub local_state: String,
     pub updated_at: String,
 }
 
@@ -43,4 +47,18 @@ pub struct IngestResult {
     pub id: i64,
     pub sha256: Option<String>,
     pub status: String,
+    pub source_identity: Option<String>,
+    pub version_number: Option<i64>,
+    pub duplicate_of_id: Option<i64>,
+    pub local_state: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VerificationSummary {
+    pub checked: i64,
+    pub present: i64,
+    pub modified: i64,
+    pub missing: i64,
+    pub unavailable: i64,
 }

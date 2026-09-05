@@ -48,11 +48,11 @@ OriginKeep desktop (Tauri + React + TypeScript + Rust)
 
 ### Phase 1 - Provenance foundation
 
-Desktop shell, browser download capture, native-message contract, SQLite provenance schema, SHA-256 fingerprinting, file detail/search surfaces, tests, and CI.
+Desktop shell, browser download capture, native-message contract, SQLite provenance schema, SHA-256 fingerprinting, file detail/search surfaces, tests, and CI. **Completed.**
 
 ### Phase 2 - Version intelligence
 
-Canonical source identities, exact duplicate detection, deterministic version families, local-modification detection, and version timelines.
+Canonical source identities, exact duplicate detection, deterministic version families, local-modification detection, and version timelines. **In progress.**
 
 ### Phase 3 - Living downloads
 
@@ -64,7 +64,9 @@ Recoverable cleanup, source-aware restore, storage review, retention policies, r
 
 ## Current status
 
-Phase 1 is in progress.
+Phase 1 is merged. Phase 2 is implementing deterministic version intelligence without filename guessing or remote-freshness claims.
+
+See [`docs/PHASE2.md`](docs/PHASE2.md) for the identity, duplicate, versioning, migration, and acceptance rules.
 
 ## Privacy boundary
 
