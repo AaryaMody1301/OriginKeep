@@ -1,9 +1,14 @@
 use crate::{
     model::DownloadCapture,
     passport::{self, CaptureContext, FilePassport},
-    storage,
+    pending_context, storage,
 };
-use std::{fs, path::{Path, PathBuf}, process::Command};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
+#[cfg(target_os = "macos")]
+use std::process::Command;
 
 pub fn adopt_existing_file(
     database: &Path,
@@ -23,6 +28,7 @@ pub fn adopt_existing_file(
         .ok_or_else(|| "Selected file has no valid filename".to_string())?
         .to_string();
     let evidence = os_provenance(&path);
+    let pending = pending_context::recent(database).unwrap_or(None);
     let explicit_source = source_url
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty());
@@ -50,13 +56,30 @@ pub fn adopt_existing_file(
         state: "complete".into(),
     };
     let result = storage::ingest_capture(database, &capture)?;
+
+    let pending_context_text = pending.as_ref().and_then(|value| value.context_text.clone());
+    let context_text = match (pending_context_text, evidence.summary.clone()) {
+        (Some(context), Some(summary)) => Some(format!("{context}\n\n{summary}")),
+        (Some(context), None) => Some(context),
+        (None, summary) => summary,
+    };
     let context = CaptureContext {
-        browser_name: Some("OS / existing file".into()),
-        page_title: None,
-        page_url: evidence.host_url.or_else(|| evidence.where_from.first().cloned()),
-        link_text: None,
-        context_text: evidence.summary,
-        context_source: Some(evidence.source),
+        browser_name: pending
+            .as_ref()
+            .and_then(|value| value.browser_name.clone())
+            .or_else(|| Some("OS / existing file".into())),
+        page_title: pending.as_ref().and_then(|value| value.page_title.clone()),
+        page_url: pending
+            .as_ref()
+            .and_then(|value| value.page_url.clone())
+            .or_else(|| evidence.host_url.clone())
+            .or_else(|| evidence.where_from.first().cloned()),
+        link_text: pending.as_ref().and_then(|value| value.link_text.clone()),
+        context_text,
+        context_source: Some(match pending.as_ref() {
+            Some(_) => format!("safari-fallback+{}", evidence.source),
+            None => evidence.source,
+        }),
     };
     passport::record_capture(database, &capture, &result, &context)?;
     passport::get_file_passport(database, result.id)
@@ -93,7 +116,8 @@ fn os_provenance(path: &Path) -> OsProvenance {
         host_url: value("HostUrl"),
         referrer_url: value("ReferrerUrl"),
         where_from: Vec::new(),
-        summary: value("ZoneId").map(|zone| format!("Imported from Windows Zone.Identifier (ZoneId {zone}).")),
+        summary: value("ZoneId")
+            .map(|zone| format!("Imported from Windows Zone.Identifier (ZoneId {zone}).")),
         source: "windows-zone-identifier".into(),
     }
 }
@@ -166,7 +190,9 @@ mod tests {
     #[cfg(target_os = "macos")]
     #[test]
     fn parses_macos_where_froms_output_without_guessing() {
-        let values = quoted_strings("(\n  \"https://example.com/file\",\n  \"https://example.com/page\"\n)");
+        let values = quoted_strings(
+            "(\n  \"https://example.com/file\",\n  \"https://example.com/page\"\n)",
+        );
         assert_eq!(values.len(), 2);
     }
 }
