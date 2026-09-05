@@ -93,6 +93,16 @@ struct CompareFile {
     mime_type: Option<String>,
 }
 
+#[derive(Debug)]
+struct ComparisonRow {
+    source_identity: Option<String>,
+    version_number: Option<i64>,
+    duplicate_of_id: Option<i64>,
+    local_path: String,
+    file_name: String,
+    mime_type: Option<String>,
+}
+
 pub fn initialize_database(path: &Path) -> Result<(), String> {
     crate::storage::initialize_database(path)?;
     let connection = Connection::open(path).map_err(|error| error.to_string())?;
@@ -537,14 +547,7 @@ fn load_comparison_pair(
 ) -> Result<(CompareFile, CompareFile), String> {
     let connection = Connection::open(path).map_err(|error| error.to_string())?;
     initialize_connection(&connection).map_err(|error| error.to_string())?;
-    let current: Option<(
-        Option<String>,
-        Option<i64>,
-        Option<i64>,
-        String,
-        String,
-        Option<String>,
-    )> = connection
+    let current: Option<ComparisonRow> = connection
         .query_row(
             r#"
             SELECT source_identity, version_number, duplicate_of_id, local_path, file_name, mime_type
@@ -552,26 +555,26 @@ fn load_comparison_pair(
             "#,
             [download_id],
             |row| {
-                Ok((
-                    row.get(0)?,
-                    row.get(1)?,
-                    row.get(2)?,
-                    row.get(3)?,
-                    row.get(4)?,
-                    row.get(5)?,
-                ))
+                Ok(ComparisonRow {
+                    source_identity: row.get(0)?,
+                    version_number: row.get(1)?,
+                    duplicate_of_id: row.get(2)?,
+                    local_path: row.get(3)?,
+                    file_name: row.get(4)?,
+                    mime_type: row.get(5)?,
+                })
             },
         )
         .optional()
         .map_err(|error| error.to_string())?;
-    let (
+    let ComparisonRow {
         source_identity,
         version_number,
         duplicate_of_id,
-        current_path,
-        current_name,
-        current_mime,
-    ) = current.ok_or_else(|| format!("Download record #{download_id} does not exist"))?;
+        local_path: current_path,
+        file_name: current_name,
+        mime_type: current_mime,
+    } = current.ok_or_else(|| format!("Download record #{download_id} does not exist"))?;
     if duplicate_of_id.is_some() {
         return Err("Compare the primary version rather than an exact duplicate".into());
     }
