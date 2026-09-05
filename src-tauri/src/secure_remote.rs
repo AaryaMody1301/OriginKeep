@@ -1,8 +1,8 @@
 use crate::phase3::RemoteEvidence;
 use reqwest::blocking::{Client, RequestBuilder, Response};
 use reqwest::header::{
-    CONTENT_LENGTH, CONTENT_RANGE, ETAG, IF_MODIFIED_SINCE, IF_NONE_MATCH, LAST_MODIFIED,
-    LOCATION, RANGE,
+    CONTENT_LENGTH, CONTENT_RANGE, ETAG, IF_MODIFIED_SINCE, IF_NONE_MATCH, LAST_MODIFIED, LOCATION,
+    RANGE,
 };
 use reqwest::StatusCode;
 use rusqlite::{params, Connection, OptionalExtension};
@@ -152,7 +152,9 @@ fn send_validated_request(target: &RemoteTarget, ranged: bool) -> Result<Respons
                 .headers()
                 .get(LOCATION)
                 .and_then(|value| value.to_str().ok())
-                .ok_or_else(|| "Redirect response did not contain a valid Location header".to_string())?;
+                .ok_or_else(|| {
+                    "Redirect response did not contain a valid Location header".to_string()
+                })?;
             let next = current
                 .join(location)
                 .map_err(|error| format!("Invalid redirect target: {error}"))?;
@@ -217,7 +219,9 @@ fn resolve_public_addresses(host: &str, port: u16) -> Result<Vec<SocketAddr>, St
     };
 
     if addresses.is_empty() {
-        return Err(format!("Remote hostname {host} did not resolve to an address"));
+        return Err(format!(
+            "Remote hostname {host} did not resolve to an address"
+        ));
     }
 
     let mut unique = HashSet::new();
