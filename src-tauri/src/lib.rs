@@ -1,3 +1,4 @@
+mod adopt;
 mod browser_setup;
 mod model;
 pub mod native_host;
@@ -170,6 +171,15 @@ fn install_browser_integration() -> Result<BrowserSetupResult, String> {
     browser_setup::install_browser_integration()
 }
 
+#[tauri::command]
+fn adopt_existing_file(
+    state: tauri::State<'_, AppState>,
+    file_path: String,
+    source_url: Option<String>,
+) -> Result<FilePassport, String> {
+    adopt::adopt_existing_file(&state.database_path, file_path, source_url)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let database_path = storage::default_database_path()
@@ -199,7 +209,8 @@ pub fn run() {
             refresh_locations,
             refresh_trust,
             origin_graph,
-            install_browser_integration
+            install_browser_integration,
+            adopt_existing_file
         ])
         .run(tauri::generate_context!())
         .expect("error while running OriginKeep");
