@@ -128,7 +128,7 @@ pub fn list_remote_evidence(path: &Path) -> Result<Vec<RemoteEvidence>, String> 
         )
         .map_err(|error| error.to_string())?;
 
-    statement
+    let rows = statement
         .query_map([], |row| {
             Ok(RemoteEvidence {
                 download_id: row.get(0)?,
@@ -147,7 +147,8 @@ pub fn list_remote_evidence(path: &Path) -> Result<Vec<RemoteEvidence>, String> 
         })
         .map_err(|error| error.to_string())?
         .collect::<rusqlite::Result<Vec<_>>>()
-        .map_err(|error| error.to_string())
+        .map_err(|error| error.to_string())?;
+    Ok(rows)
 }
 
 pub fn check_remote_freshness(path: &Path, download_id: i64) -> Result<RemoteEvidence, String> {
@@ -181,7 +182,9 @@ fn load_remote_target(path: &Path, download_id: i64) -> Result<RemoteTarget, Str
         record.ok_or_else(|| format!("Download record #{download_id} does not exist"))?;
 
     if duplicate_of_id.is_some() {
-        return Err("Remote freshness is checked on the primary version, not an exact duplicate".into());
+        return Err(
+            "Remote freshness is checked on the primary version, not an exact duplicate".into(),
+        );
     }
     let url = source_identity
         .ok_or_else(|| "This download has no canonical HTTP(S) source identity".to_string())?;
@@ -250,11 +253,9 @@ fn perform_remote_check(client: &Client, target: &RemoteTarget) -> RemoteOutcome
             if response.status() == reqwest::StatusCode::METHOD_NOT_ALLOWED
                 || response.status() == reqwest::StatusCode::NOT_IMPLEMENTED =>
         {
-            let ranged = conditional_request(
-                client.get(&target.url).header(RANGE, "bytes=0-0"),
-                target,
-            )
-            .send();
+            let ranged =
+                conditional_request(client.get(&target.url).header(RANGE, "bytes=0-0"), target)
+                    .send();
             match ranged {
                 Ok(response) => outcome_from_response(response, target, "GET_RANGE", true),
                 Err(error) => network_failure(target, "GET_RANGE", error.to_string()),
@@ -274,7 +275,8 @@ fn network_failure(target: &RemoteTarget, method: &str, error: String) -> Remote
         etag: target.previous_etag.clone(),
         last_modified: target.previous_last_modified.clone(),
         content_length: target.previous_content_length,
-        evidence: "The remote request failed before OriginKeep received usable HTTP evidence.".into(),
+        evidence: "The remote request failed before OriginKeep received usable HTTP evidence."
+            .into(),
         error: Some(error),
     }
 }
@@ -290,7 +292,9 @@ fn outcome_from_response(
     let response_etag = header_string(&response, ETAG);
     let response_last_modified = header_string(&response, LAST_MODIFIED);
     let response_length = response_content_length(&response, ranged);
-    let effective_etag = response_etag.clone().or_else(|| target.previous_etag.clone());
+    let effective_etag = response_etag
+        .clone()
+        .or_else(|| target.previous_etag.clone());
     let effective_last_modified = response_last_modified
         .clone()
         .or_else(|| target.previous_last_modified.clone());
@@ -427,7 +431,9 @@ fn persist_remote_outcome(
 ) -> Result<RemoteEvidence, String> {
     let mut connection = Connection::open(path).map_err(|error| error.to_string())?;
     initialize_connection(&connection).map_err(|error| error.to_string())?;
-    let transaction = connection.transaction().map_err(|error| error.to_string())?;
+    let transaction = connection
+        .transaction()
+        .map_err(|error| error.to_string())?;
     transaction
         .execute(
             r#"
@@ -525,7 +531,10 @@ pub fn compare_with_previous(path: &Path, download_id: i64) -> Result<Comparison
     })
 }
 
-fn load_comparison_pair(path: &Path, download_id: i64) -> Result<(CompareFile, CompareFile), String> {
+fn load_comparison_pair(
+    path: &Path,
+    download_id: i64,
+) -> Result<(CompareFile, CompareFile), String> {
     let connection = Connection::open(path).map_err(|error| error.to_string())?;
     initialize_connection(&connection).map_err(|error| error.to_string())?;
     let current: Option<(
@@ -555,8 +564,14 @@ fn load_comparison_pair(path: &Path, download_id: i64) -> Result<(CompareFile, C
         )
         .optional()
         .map_err(|error| error.to_string())?;
-    let (source_identity, version_number, duplicate_of_id, current_path, current_name, current_mime) =
-        current.ok_or_else(|| format!("Download record #{download_id} does not exist"))?;
+    let (
+        source_identity,
+        version_number,
+        duplicate_of_id,
+        current_path,
+        current_name,
+        current_mime,
+    ) = current.ok_or_else(|| format!("Download record #{download_id} does not exist"))?;
     if duplicate_of_id.is_some() {
         return Err("Compare the primary version rather than an exact duplicate".into());
     }
@@ -601,10 +616,16 @@ fn load_comparison_pair(path: &Path, download_id: i64) -> Result<(CompareFile, C
         mime_type: previous_mime,
     };
     if !current.path.is_file() {
-        return Err(format!("Current file is missing: {}", current.path.display()));
+        return Err(format!(
+            "Current file is missing: {}",
+            current.path.display()
+        ));
     }
     if !previous.path.is_file() {
-        return Err(format!("Previous file is missing: {}", previous.path.display()));
+        return Err(format!(
+            "Previous file is missing: {}",
+            previous.path.display()
+        ));
     }
     Ok((current, previous))
 }
@@ -664,7 +685,10 @@ fn extract_pdf_text(path: &Path) -> Result<String, String> {
     let owned = path.to_path_buf();
     match catch_unwind(AssertUnwindSafe(|| pdf_extract::extract_text(&owned))) {
         Ok(Ok(text)) => Ok(text),
-        Ok(Err(error)) => Err(format!("Could not extract PDF text from {}: {error}", path.display())),
+        Ok(Err(error)) => Err(format!(
+            "Could not extract PDF text from {}: {error}",
+            path.display()
+        )),
         Err(_) => Err(format!(
             "PDF text extraction failed safely for {}; the file may use an unsupported or malformed text layer",
             path.display()
@@ -729,7 +753,12 @@ fn read_csv(path: &Path) -> Result<(Vec<String>, Vec<Vec<String>>), String> {
         .map_err(|error| format!("Could not open CSV {}: {error}", path.display()))?;
     let headers = reader
         .headers()
-        .map_err(|error| format!("Could not read CSV headers from {}: {error}", path.display()))?
+        .map_err(|error| {
+            format!(
+                "Could not read CSV headers from {}: {error}",
+                path.display()
+            )
+        })?
         .iter()
         .map(ToOwned::to_owned)
         .collect::<Vec<_>>();
@@ -796,7 +825,11 @@ fn compare_csv_files(previous: &Path, current: &Path) -> Result<(String, Vec<Str
         previous_headers.len(),
         current_headers.len(),
         changed_cells,
-        if headers_changed { ", headers changed" } else { "" }
+        if headers_changed {
+            ", headers changed"
+        } else {
+            ""
+        }
     );
     if details.is_empty() {
         details.push("The parsed CSV content is identical.".into());
@@ -810,26 +843,12 @@ mod tests {
 
     #[test]
     fn validators_drive_remote_state_without_guessing() {
-        let (state, _) = classify_remote_state(
-            200,
-            Some("\"v1\""),
-            None,
-            None,
-            Some("\"v2\""),
-            None,
-            None,
-        );
+        let (state, _) =
+            classify_remote_state(200, Some("\"v1\""), None, None, Some("\"v2\""), None, None);
         assert_eq!(state, "CHANGED");
 
-        let (state, _) = classify_remote_state(
-            200,
-            Some("\"v1\""),
-            None,
-            None,
-            Some("\"v1\""),
-            None,
-            None,
-        );
+        let (state, _) =
+            classify_remote_state(200, Some("\"v1\""), None, None, Some("\"v1\""), None, None);
         assert_eq!(state, "CURRENT");
 
         let (state, _) = classify_remote_state(200, None, None, None, None, None, Some(42));
@@ -838,15 +857,28 @@ mod tests {
 
     #[test]
     fn http_statuses_map_to_explicit_evidence_states() {
-        assert_eq!(classify_remote_state(304, None, None, None, None, None, None).0, "CURRENT");
-        assert_eq!(classify_remote_state(401, None, None, None, None, None, None).0, "AUTH_REQUIRED");
-        assert_eq!(classify_remote_state(404, None, None, None, None, None, None).0, "SOURCE_MISSING");
-        assert_eq!(classify_remote_state(500, None, None, None, None, None, None).0, "CHECK_FAILED");
+        assert_eq!(
+            classify_remote_state(304, None, None, None, None, None, None).0,
+            "CURRENT"
+        );
+        assert_eq!(
+            classify_remote_state(401, None, None, None, None, None, None).0,
+            "AUTH_REQUIRED"
+        );
+        assert_eq!(
+            classify_remote_state(404, None, None, None, None, None, None).0,
+            "SOURCE_MISSING"
+        );
+        assert_eq!(
+            classify_remote_state(500, None, None, None, None, None, None).0,
+            "CHECK_FAILED"
+        );
     }
 
     #[test]
     fn text_comparison_reports_line_changes() {
-        let (summary, details) = compare_text_content("alpha\nbeta\n", "alpha\ngamma\n", "Text");
+        let (summary, details) =
+            compare_text_content("alpha\nbeta\n", "alpha\ngamma\n", "Text");
         assert!(summary.contains("1 added line"));
         assert!(summary.contains("1 removed line"));
         assert!(details.iter().any(|detail| detail.contains("beta")));
@@ -855,9 +887,15 @@ mod tests {
 
     #[test]
     fn comparison_type_is_explicit() {
-        assert_eq!(comparison_kind(Path::new("report.pdf"), None).unwrap(), "PDF text");
+        assert_eq!(
+            comparison_kind(Path::new("report.pdf"), None).unwrap(),
+            "PDF text"
+        );
         assert_eq!(comparison_kind(Path::new("data.csv"), None).unwrap(), "CSV");
-        assert_eq!(comparison_kind(Path::new("notes.md"), None).unwrap(), "Text");
+        assert_eq!(
+            comparison_kind(Path::new("notes.md"), None).unwrap(),
+            "Text"
+        );
         assert!(comparison_kind(Path::new("archive.zip"), None).is_err());
     }
 }
