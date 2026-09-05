@@ -23,103 +23,102 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
 
-          path = Path('src-tauri/src/passport.rs')
+          path = Path("src-tauri/src/passport.rs")
           text = path.read_text()
-          replacements = [
-              (
-                  '''        statement
-            .query_map([], |row| row.get::<_, i64>(0))
-            .map_err(|error| error.to_string())?
-            .collect::<rusqlite::Result<Vec<_>>>()
-            .map_err(|error| error.to_string())?
-''',
-                  '''        let rows = statement
-            .query_map([], |row| row.get::<_, i64>(0))
-            .map_err(|error| error.to_string())?;
-        rows.collect::<rusqlite::Result<Vec<_>>>()
-            .map_err(|error| error.to_string())?
-''',
-              ),
-              (
-                  '''    statement
-        .query_map([download_id], |row| {
-            Ok(FileLocation {
-                path: row.get(0)?,
-                is_current: row.get::<_, i64>(1)? != 0,
-                first_seen: row.get(2)?,
-                last_seen: row.get(3)?,
-            })
-        })?
-        .collect()
-''',
-                  '''    let rows = statement.query_map([download_id], |row| {
-        Ok(FileLocation {
-            path: row.get(0)?,
-            is_current: row.get::<_, i64>(1)? != 0,
-            first_seen: row.get(2)?,
-            last_seen: row.get(3)?,
-        })
-    })?;
-    rows.collect()
-''',
-              ),
-              (
-                  '''        statement
-            .query_map([], |row| {
-                Ok((
-                    row.get(0)?,
-                    row.get(1)?,
-                    row.get(2)?,
-                    row.get(3)?,
-                    row.get(4)?,
-                    row.get(5)?,
-                    row.get(6)?,
-                    row.get(7)?,
-                ))
-            })
-            .map_err(|error| error.to_string())?
-            .collect::<rusqlite::Result<Vec<_>>>()
-            .map_err(|error| error.to_string())?
-''',
-                  '''        let rows = statement
-            .query_map([], |row| {
-                Ok((
-                    row.get(0)?,
-                    row.get(1)?,
-                    row.get(2)?,
-                    row.get(3)?,
-                    row.get(4)?,
-                    row.get(5)?,
-                    row.get(6)?,
-                    row.get(7)?,
-                ))
-            })
-            .map_err(|error| error.to_string())?;
-        rows.collect::<rusqlite::Result<Vec<_>>>()
-            .map_err(|error| error.to_string())?
-''',
-              ),
-          ]
-          for old, new in replacements:
-              if text.count(old) != 1:
-                  raise SystemExit(f'Expected exactly one Passport replacement, found {text.count(old)}')
-              text = text.replace(old, new, 1)
+
+          old = """        statement
+              .query_map([], |row| row.get::<_, i64>(0))
+              .map_err(|error| error.to_string())?
+              .collect::<rusqlite::Result<Vec<_>>>()
+              .map_err(|error| error.to_string())?
+          """
+          new = """        let rows = statement
+              .query_map([], |row| row.get::<_, i64>(0))
+              .map_err(|error| error.to_string())?;
+          rows.collect::<rusqlite::Result<Vec<_>>>()
+              .map_err(|error| error.to_string())?
+          """
+          if text.count(old) != 1:
+              raise SystemExit(f"Expected one list_passports replacement, found {text.count(old)}")
+          text = text.replace(old, new, 1)
+
+          old = """    statement
+              .query_map([download_id], |row| {
+                  Ok(FileLocation {
+                      path: row.get(0)?,
+                      is_current: row.get::<_, i64>(1)? != 0,
+                      first_seen: row.get(2)?,
+                      last_seen: row.get(3)?,
+                  })
+              })?
+              .collect()
+          """
+          new = """    let rows = statement.query_map([download_id], |row| {
+              Ok(FileLocation {
+                  path: row.get(0)?,
+                  is_current: row.get::<_, i64>(1)? != 0,
+                  first_seen: row.get(2)?,
+                  last_seen: row.get(3)?,
+              })
+          })?;
+          rows.collect()
+          """
+          if text.count(old) != 1:
+              raise SystemExit(f"Expected one load_locations replacement, found {text.count(old)}")
+          text = text.replace(old, new, 1)
+
+          old = """        statement
+              .query_map([], |row| {
+                  Ok((
+                      row.get(0)?,
+                      row.get(1)?,
+                      row.get(2)?,
+                      row.get(3)?,
+                      row.get(4)?,
+                      row.get(5)?,
+                      row.get(6)?,
+                      row.get(7)?,
+                  ))
+              })
+              .map_err(|error| error.to_string())?
+              .collect::<rusqlite::Result<Vec<_>>>()
+              .map_err(|error| error.to_string())?
+          """
+          new = """        let rows = statement
+              .query_map([], |row| {
+                  Ok((
+                      row.get(0)?,
+                      row.get(1)?,
+                      row.get(2)?,
+                      row.get(3)?,
+                      row.get(4)?,
+                      row.get(5)?,
+                      row.get(6)?,
+                      row.get(7)?,
+                  ))
+              })
+              .map_err(|error| error.to_string())?;
+          rows.collect::<rusqlite::Result<Vec<_>>>()
+              .map_err(|error| error.to_string())?
+          """
+          if text.count(old) != 1:
+              raise SystemExit(f"Expected one origin graph replacement, found {text.count(old)}")
+          text = text.replace(old, new, 1)
           path.write_text(text)
 
-          trust = Path('src-tauri/src/trust.rs')
+          trust = Path("src-tauri/src/trust.rs")
           trust_text = trust.read_text()
-          old = '    fs::{self, File},\n'
-          new = '    fs::File,\n'
-          if trust_text.count(old) != 1:
-              raise SystemExit('Expected exactly one trust import replacement')
-          trust.write_text(trust_text.replace(old, new, 1))
+          old_import = "    fs::{self, File},\n"
+          if trust_text.count(old_import) != 1:
+              raise SystemExit("Expected one trust import replacement")
+          trust.write_text(trust_text.replace(old_import, "    fs::File,\n", 1))
           PY
 
       - name: Format and commit
         shell: bash
         run: |
           cargo fmt --manifest-path src-tauri/Cargo.toml
-          git rm .github/workflows/diagnose-sidecar.yml .github/workflows/fix-passport-ci.yml
+          git rm .github/workflows/diagnose-sidecar.yml
           git add src-tauri/src/passport.rs src-tauri/src/trust.rs
           git diff --cached --check
           git config user.name "github-actions[bot]"
