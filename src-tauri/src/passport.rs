@@ -21,11 +21,17 @@ CREATE TABLE IF NOT EXISTS file_locations (
 );
 CREATE INDEX IF NOT EXISTS idx_file_locations_download_id ON file_locations(download_id, is_current DESC, id DESC);
 "#;
-
 const PASSPORT_FORMAT: &str = "org.originkeep.passport";
 const PASSPORT_VERSION: u32 = 1;
 const MAX_SCAN_ENTRIES: usize = 20_000;
 const MAX_SCAN_DEPTH: usize = 8;
+const RETENTION_POLICIES: [&str; 5] = [
+    "MANUAL",
+    "REVIEW_WHEN_NEWER",
+    "ARCHIVE_WHEN_SUPERSEDED",
+    "ARCHIVE_WHEN_EXPIRED",
+    "NEVER_ARCHIVE",
+];
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -185,9 +191,13 @@ fn initialize_connection(connection: &Connection) -> rusqlite::Result<()> {
     connection.execute(
         r#"
         INSERT INTO file_locations (download_id, path, is_current)
-        SELECT id, local_path, 1 FROM downloads WHERE local_path <> ''
+        SELECT d.id, d.local_path,
+               CASE WHEN COALESCE(l.state, 'ACTIVE') = 'ARCHIVED' THEN 0 ELSE 1 END
+        FROM downloads d
+        LEFT JOIN lifecycle_entries l ON l.download_id = d.id
+        WHERE d.local_path <> ''
         ON CONFLICT(download_id, path) DO UPDATE SET
-            is_current = 1,
+            is_current = excluded.is_current,
             last_seen = CURRENT_TIMESTAMP
         "#,
         [],
@@ -202,12 +212,11 @@ pub fn list_passports(path: &Path) -> Result<Vec<PassportRecord>, String> {
         let mut statement = connection
             .prepare("SELECT id FROM downloads ORDER BY updated_at DESC, id DESC")
             .map_err(|error| error.to_string())?;
-        let values = statement
+        statement
             .query_map([], |row| row.get::<_, i64>(0))
             .map_err(|error| error.to_string())?
             .collect::<rusqlite::Result<Vec<_>>>()
-            .map_err(|error| error.to_string())?;
-        values
+            .map_err(|error| error.to_string())?
     };
     ids.into_iter()
         .map(|id| load_passport(&connection, id).map_err(|error| error.to_string()))
@@ -228,8 +237,7 @@ fn load_passport(connection: &Connection, download_id: i64) -> rusqlite::Result<
                d.local_state, d.original_url, d.final_url, d.referrer,
                d.page_url, d.page_title, d.link_text, d.context_text, d.browser_name,
                d.completed_at, d.purpose, d.note, d.expires_at,
-               COALESCE(d.retention_policy, 'MANUAL'),
-               COALESCE(l.state, 'ACTIVE')
+               COALESCE(d.retention_policy, 'MANUAL'), COALESCE(l.state, 'ACTIVE')
         FROM downloads d
         LEFT JOIN lifecycle_entries l ON l.download_id = d.id
         WHERE d.id = ?1
@@ -272,12 +280,7 @@ fn load_passport(connection: &Connection, download_id: i64) -> rusqlite::Result<
 
     let remote: Option<(String, String)> = connection
         .query_row(
-            r#"
-            SELECT result_state, checked_at
-            FROM remote_checks
-            WHERE download_id = ?1
-            ORDER BY id DESC LIMIT 1
-            "#,
+            "SELECT result_state, checked_at FROM remote_checks WHERE download_id = ?1 ORDER BY id DESC LIMIT 1",
             [download_id],
             |row| Ok((row.get(0)?, row.get(1)?)),
         )
@@ -286,7 +289,6 @@ fn load_passport(connection: &Connection, download_id: i64) -> rusqlite::Result<
         record.latest_remote_state = Some(state);
         record.latest_remote_checked_at = Some(checked_at);
     }
-
     record.locations = load_locations(connection, download_id)?;
     let sidecar = passport_sidecar_path(Path::new(&record.local_path));
     if sidecar.is_file() {
@@ -297,14 +299,9 @@ fn load_passport(connection: &Connection, download_id: i64) -> rusqlite::Result<
 
 fn load_locations(connection: &Connection, download_id: i64) -> rusqlite::Result<Vec<FileLocation>> {
     let mut statement = connection.prepare(
-        r#"
-        SELECT path, is_current, first_seen, last_seen
-        FROM file_locations
-        WHERE download_id = ?1
-        ORDER BY is_current DESC, last_seen DESC, id DESC
-        "#,
+        "SELECT path, is_current, first_seen, last_seen FROM file_locations WHERE download_id = ?1 ORDER BY is_current DESC, last_seen DESC, id DESC",
     )?;
-    let rows = statement
+    statement
         .query_map([download_id], |row| {
             Ok(FileLocation {
                 path: row.get(0)?,
@@ -313,8 +310,7 @@ fn load_locations(connection: &Connection, download_id: i64) -> rusqlite::Result
                 last_seen: row.get(3)?,
             })
         })?
-        .collect::<rusqlite::Result<Vec<_>>>()?;
-    Ok(rows)
+        .collect()
 }
 
 pub fn update_metadata(
@@ -326,39 +322,41 @@ pub fn update_metadata(
     retention_policy: String,
 ) -> Result<PassportRecord, String> {
     initialize_database(path)?;
-    let retention_policy = retention_policy.trim().to_ascii_uppercase();
-    let allowed = [
-        "MANUAL",
-        "REVIEW_WHEN_NEWER",
-        "ARCHIVE_WHEN_SUPERSEDED",
-        "ARCHIVE_WHEN_EXPIRED",
-        "NEVER_ARCHIVE",
-    ];
-    if !allowed.contains(&retention_policy.as_str()) {
-        return Err(format!(
-            "Unsupported retention policy: {retention_policy}. Expected one of {}",
-            allowed.join(", ")
-        ));
-    }
+    let retention_policy = normalize_retention(&retention_policy)?;
     let connection = Connection::open(path).map_err(|error| error.to_string())?;
     let changed = connection
         .execute(
             r#"
             UPDATE downloads
-            SET purpose = ?1,
-                note = ?2,
-                expires_at = ?3,
-                retention_policy = ?4,
+            SET purpose = ?1, note = ?2, expires_at = ?3, retention_policy = ?4,
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = ?5
             "#,
-            params![clean_optional(purpose), clean_optional(note), clean_optional(expires_at), retention_policy, download_id],
+            params![
+                clean_optional(purpose),
+                clean_optional(note),
+                clean_optional(expires_at),
+                retention_policy,
+                download_id
+            ],
         )
         .map_err(|error| error.to_string())?;
     if changed == 0 {
         return Err(format!("Download record #{download_id} does not exist"));
     }
     load_passport(&connection, download_id).map_err(|error| error.to_string())
+}
+
+fn normalize_retention(value: &str) -> Result<String, String> {
+    let value = value.trim().to_ascii_uppercase();
+    if RETENTION_POLICIES.contains(&value.as_str()) {
+        Ok(value)
+    } else {
+        Err(format!(
+            "Unsupported retention policy: {value}. Expected one of {}",
+            RETENTION_POLICIES.join(", ")
+        ))
+    }
 }
 
 fn clean_optional(value: Option<String>) -> Option<String> {
@@ -387,22 +385,23 @@ pub fn export_passport(path: &Path, download_id: i64) -> Result<PassportExport, 
     let current = storage::sha256_file(&local_path)
         .map_err(|error| format!("Could not fingerprint {}: {error}", local_path.display()))?;
     if current != expected {
-        return Err("Portable passport export is blocked because the local bytes no longer match the recorded download fingerprint".into());
+        return Err("Portable passport export is blocked because local bytes no longer match the recorded fingerprint".into());
     }
 
-    let duplicate_sha256 = if let Some(duplicate_id) = record.duplicate_of_id {
-        connection
-            .query_row(
-                "SELECT sha256 FROM downloads WHERE id = ?1",
-                [duplicate_id],
-                |row| row.get::<_, Option<String>>(0),
-            )
-            .optional()
-            .map_err(|error| error.to_string())?
-            .flatten()
-    } else {
-        None
-    };
+    let duplicate_of_sha256 = record
+        .duplicate_of_id
+        .and_then(|id| {
+            connection
+                .query_row(
+                    "SELECT sha256 FROM downloads WHERE id = ?1",
+                    [id],
+                    |row| row.get::<_, Option<String>>(0),
+                )
+                .optional()
+                .ok()
+                .flatten()
+                .flatten()
+        });
     let exported_at: String = connection
         .query_row("SELECT CURRENT_TIMESTAMP", [], |row| row.get(0))
         .map_err(|error| error.to_string())?;
@@ -417,11 +416,11 @@ pub fn export_passport(path: &Path, download_id: i64) -> Result<PassportExport, 
             sha256: expected.clone(),
         },
         origin: PortableOrigin {
-            original_url: record.original_url.clone(),
-            final_url: record.final_url.clone(),
-            referrer: record.referrer.clone(),
-            source_identity: record.source_identity.clone(),
-            page_url: record.page_url.clone(),
+            original_url: redact_portable_url(&record.original_url),
+            final_url: record.final_url.as_deref().map(redact_portable_url),
+            referrer: record.referrer.as_deref().map(redact_portable_url),
+            source_identity: record.source_identity.as_deref().map(redact_portable_url),
+            page_url: record.page_url.as_deref().map(redact_portable_url),
             page_title: record.page_title.clone(),
             link_text: record.link_text.clone(),
             context_text: record.context_text.clone(),
@@ -455,6 +454,61 @@ pub fn export_passport(path: &Path, download_id: i64) -> Result<PassportExport, 
     })
 }
 
+fn redact_portable_url(value: &str) -> String {
+    let Ok(mut url) = Url::parse(value) else {
+        return value.to_string();
+    };
+    if !matches!(url.scheme(), "http" | "https") {
+        return value.to_string();
+    }
+    let _ = url.set_username("");
+    let _ = url.set_password(None);
+    let pairs = url
+        .query_pairs()
+        .map(|(key, value)| (key.into_owned(), value.into_owned()))
+        .collect::<Vec<_>>();
+    if pairs.is_empty() {
+        return url.to_string();
+    }
+    url.set_query(None);
+    {
+        let mut query = url.query_pairs_mut();
+        for (key, value) in pairs {
+            let output = if is_sensitive_query_key(&key) {
+                "[REDACTED]"
+            } else {
+                value.as_str()
+            };
+            query.append_pair(&key, output);
+        }
+    }
+    url.to_string()
+}
+
+fn is_sensitive_query_key(key: &str) -> bool {
+    matches!(
+        key.to_ascii_lowercase().as_str(),
+        "token"
+            | "access_token"
+            | "id_token"
+            | "auth"
+            | "authorization"
+            | "signature"
+            | "sig"
+            | "key"
+            | "api_key"
+            | "apikey"
+            | "code"
+            | "session"
+            | "jwt"
+            | "x-amz-signature"
+            | "x-amz-credential"
+            | "x-amz-security-token"
+            | "x-goog-signature"
+            | "x-goog-credential"
+    )
+}
+
 pub fn import_passport(
     path: &Path,
     passport_path: String,
@@ -463,11 +517,8 @@ pub fn import_passport(
     initialize_database(path)?;
     let passport_path = PathBuf::from(passport_path);
     let file_path = PathBuf::from(file_path);
-    if !passport_path.is_file() {
-        return Err(format!("Passport file does not exist: {}", passport_path.display()));
-    }
-    if !file_path.is_file() {
-        return Err(format!("Tracked file does not exist: {}", file_path.display()));
+    if !passport_path.is_file() || !file_path.is_file() {
+        return Err("Passport import requires both an existing Passport JSON and local file".into());
     }
     let portable: PortablePassport = serde_json::from_slice(
         &fs::read(&passport_path)
@@ -480,20 +531,19 @@ pub fn import_passport(
             portable.format, portable.version
         ));
     }
+    let retention_policy = normalize_retention(&portable.intent.retention_policy)?;
     let actual = storage::sha256_file(&file_path)
         .map_err(|error| format!("Could not fingerprint {}: {error}", file_path.display()))?;
     if actual != portable.file.sha256 {
         return Err("The selected file does not match the SHA-256 recorded by this passport".into());
     }
-
     let metadata = fs::metadata(&file_path).map_err(|error| error.to_string())?;
-    let capture_key = format!(
-        "passport-import:{}:{}",
-        portable.file.sha256,
-        file_path.display()
-    );
     let capture = DownloadCapture {
-        capture_key,
+        capture_key: format!(
+            "passport-import:{}:{}",
+            portable.file.sha256,
+            file_path.display()
+        ),
         browser_download_id: 0,
         original_url: portable.origin.original_url.clone(),
         final_url: portable.origin.final_url.clone(),
@@ -515,25 +565,16 @@ pub fn import_passport(
         browser_name: portable.origin.browser_name.clone(),
     };
     let ingested = storage::ingest_capture(path, &capture)?;
+    update_metadata(
+        path,
+        ingested.id,
+        portable.intent.purpose,
+        portable.intent.note,
+        portable.intent.expires_at,
+        retention_policy,
+    )?;
     let connection = Connection::open(path).map_err(|error| error.to_string())?;
     initialize_connection(&connection).map_err(|error| error.to_string())?;
-    connection
-        .execute(
-            r#"
-            UPDATE downloads
-            SET purpose = ?1, note = ?2, expires_at = ?3, retention_policy = ?4,
-                updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?5
-            "#,
-            params![
-                portable.intent.purpose,
-                portable.intent.note,
-                portable.intent.expires_at,
-                portable.intent.retention_policy,
-                ingested.id
-            ],
-        )
-        .map_err(|error| error.to_string())?;
     record_location(&connection, ingested.id, &file_path).map_err(|error| error.to_string())?;
     load_passport(&connection, ingested.id).map_err(|error| error.to_string())
 }
@@ -592,8 +633,7 @@ pub fn relink_download(
             [download_id],
         )
         .map_err(|error| error.to_string())?;
-    let old = PathBuf::from(old_path);
-    record_location_with_state(&connection, download_id, &old, false)
+    record_location_with_state(&connection, download_id, Path::new(&old_path), false)
         .map_err(|error| error.to_string())?;
     record_location(&connection, download_id, &candidate).map_err(|error| error.to_string())?;
     load_passport(&connection, download_id).map_err(|error| error.to_string())
@@ -671,7 +711,9 @@ fn scan_directory_for_hash(
         let Ok(entry) = entry else { continue };
         *scanned += 1;
         let path = entry.path();
-        let Ok(file_type) = entry.file_type() else { continue };
+        let Ok(file_type) = entry.file_type() else {
+            continue;
+        };
         if file_type.is_symlink() {
             continue;
         }
@@ -720,7 +762,7 @@ fn record_location_with_state(
             is_current = excluded.is_current,
             last_seen = CURRENT_TIMESTAMP
         "#,
-        params![download_id, path.display().to_string(), if current { 1 } else { 0 }],
+        params![download_id, path.display().to_string(), i64::from(current)],
     )?;
     Ok(())
 }
@@ -732,33 +774,38 @@ fn passport_sidecar_path(file: &Path) -> PathBuf {
 pub fn origin_graph(path: &Path) -> Result<OriginGraph, String> {
     initialize_database(path)?;
     let connection = Connection::open(path).map_err(|error| error.to_string())?;
-    let records = {
+    type GraphRow = (
+        i64,
+        String,
+        String,
+        Option<String>,
+        Option<i64>,
+        Option<i64>,
+        Option<String>,
+        Option<String>,
+    );
+    let records: Vec<GraphRow> = {
         let mut statement = connection
             .prepare(
-                r#"
-                SELECT id, file_name, original_url, source_identity, version_number,
-                       duplicate_of_id, sha256, purpose
-                FROM downloads ORDER BY id ASC
-                "#,
+                "SELECT id, file_name, original_url, source_identity, version_number, duplicate_of_id, sha256, purpose FROM downloads ORDER BY id ASC",
             )
             .map_err(|error| error.to_string())?;
-        let rows = statement
+        statement
             .query_map([], |row| {
                 Ok((
-                    row.get::<_, i64>(0)?,
-                    row.get::<_, String>(1)?,
-                    row.get::<_, String>(2)?,
-                    row.get::<_, Option<String>>(3)?,
-                    row.get::<_, Option<i64>>(4)?,
-                    row.get::<_, Option<i64>>(5)?,
-                    row.get::<_, Option<String>>(6)?,
-                    row.get::<_, Option<String>>(7)?,
+                    row.get(0)?,
+                    row.get(1)?,
+                    row.get(2)?,
+                    row.get(3)?,
+                    row.get(4)?,
+                    row.get(5)?,
+                    row.get(6)?,
+                    row.get(7)?,
                 ))
             })
             .map_err(|error| error.to_string())?
             .collect::<rusqlite::Result<Vec<_>>>()
-            .map_err(|error| error.to_string())?;
-        rows
+            .map_err(|error| error.to_string())?
     };
 
     let mut nodes = BTreeMap::<String, OriginNode>::new();
@@ -767,25 +814,27 @@ pub fn origin_graph(path: &Path) -> Result<OriginGraph, String> {
     let mut last_version_by_source = BTreeMap::<String, (i64, String)>::new();
 
     for (id, file_name, original_url, source_identity, version_number, duplicate_of_id, sha256, purpose) in records {
-        let site = source_identity
-            .as_deref()
-            .unwrap_or(&original_url);
-        let host = Url::parse(site)
-            .ok()
-            .and_then(|url| url.host_str().map(ToOwned::to_owned))
-            .unwrap_or_else(|| "unknown-source".into());
+        let source_value = source_identity.clone().unwrap_or_else(|| original_url.clone());
+        let host = if original_url == "urn:originkeep:local-adoption" {
+            "Local adoption".to_string()
+        } else {
+            Url::parse(&source_value)
+                .ok()
+                .and_then(|url| url.host_str().map(ToOwned::to_owned))
+                .unwrap_or_else(|| "Unknown source".into())
+        };
         let site_id = format!("site:{host}");
         nodes.entry(site_id.clone()).or_insert_with(|| OriginNode {
             id: site_id.clone(),
             kind: "SITE".into(),
-            label: host.clone(),
+            label: host,
             detail: None,
         });
 
-        let source_value = source_identity.clone().unwrap_or_else(|| original_url.clone());
+        let next_source_id = format!("source:{}", source_ids.len() + 1);
         let source_id = source_ids
             .entry(source_value.clone())
-            .or_insert_with(|| format!("source:{}", source_ids.len() + 1))
+            .or_insert(next_source_id)
             .clone();
         nodes.entry(source_id.clone()).or_insert_with(|| OriginNode {
             id: source_id.clone(),
@@ -796,24 +845,36 @@ pub fn origin_graph(path: &Path) -> Result<OriginGraph, String> {
         edges.insert((site_id, source_id.clone(), "ORIGIN".into()));
 
         let file_id = format!("file:{id}");
+        let detail = format!(
+            "{}{}{}",
+            version_number
+                .map(|value| format!("v{value}"))
+                .unwrap_or_else(|| "unversioned".into()),
+            purpose
+                .as_deref()
+                .map(|value| format!(" · {value}"))
+                .unwrap_or_default(),
+            sha256
+                .as_deref()
+                .map(|value| format!(" · {}…", &value[..value.len().min(12)]))
+                .unwrap_or_default()
+        );
         nodes.insert(
             file_id.clone(),
             OriginNode {
                 id: file_id.clone(),
                 kind: "FILE".into(),
                 label: file_name,
-                detail: Some(format!(
-                    "{}{}{}",
-                    version_number.map(|value| format!("v{value}" )).unwrap_or_else(|| "unversioned".into()),
-                    purpose.as_deref().map(|value| format!(" · {value}")).unwrap_or_default(),
-                    sha256.as_deref().map(|value| format!(" · {}…", &value[..value.len().min(12)])).unwrap_or_default()
-                )),
+                detail: Some(detail),
             },
         );
-        edges.insert((source_id.clone(), file_id.clone(), "HAS_VERSION".into()));
-
+        edges.insert((source_id, file_id.clone(), "HAS_VERSION".into()));
         if let Some(duplicate_id) = duplicate_of_id {
-            edges.insert((file_id.clone(), format!("file:{duplicate_id}"), "EXACT_DUPLICATE_OF".into()));
+            edges.insert((
+                file_id.clone(),
+                format!("file:{duplicate_id}"),
+                "EXACT_DUPLICATE_OF".into(),
+            ));
         }
         if let Some(version) = version_number {
             if let Some((previous_version, previous_file)) = last_version_by_source.get(&source_value) {
@@ -824,7 +885,7 @@ pub fn origin_graph(path: &Path) -> Result<OriginGraph, String> {
             if duplicate_of_id.is_none() {
                 let replace = last_version_by_source
                     .get(&source_value)
-                    .is_none_or(|(existing, _)| version >= *existing);
+                    .map_or(true, |(existing, _)| version >= *existing);
                 if replace {
                     last_version_by_source.insert(source_value, (version, file_id));
                 }
@@ -844,7 +905,10 @@ pub fn origin_graph(path: &Path) -> Result<OriginGraph, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::{env, time::{SystemTime, UNIX_EPOCH}};
+    use std::{
+        env,
+        time::{SystemTime, UNIX_EPOCH},
+    };
 
     fn unique_path(name: &str) -> PathBuf {
         let unique = SystemTime::now()
@@ -856,11 +920,23 @@ mod tests {
 
     #[test]
     fn portable_passport_path_is_adjacent_and_explicit() {
-        let path = Path::new("/tmp/report.pdf");
         assert_eq!(
-            passport_sidecar_path(path).display().to_string(),
+            passport_sidecar_path(Path::new("/tmp/report.pdf"))
+                .display()
+                .to_string(),
             "/tmp/report.pdf.originkeep.json"
         );
+    }
+
+    #[test]
+    fn portable_urls_redact_common_credentials_without_dropping_identity_queries() {
+        let value = redact_portable_url(
+            "https://example.com/report?v=2&token=secret&X-Amz-Signature=abc#page=2",
+        );
+        assert!(value.contains("v=2"));
+        assert!(value.contains("token=%5BREDACTED%5D"));
+        assert!(value.contains("X-Amz-Signature=%5BREDACTED%5D"));
+        assert!(!value.contains("secret"));
     }
 
     #[test]
@@ -878,8 +954,13 @@ mod tests {
     }
 
     #[test]
-    fn metadata_cleanup_preserves_absence() {
+    fn metadata_cleanup_and_policy_validation_fail_closed() {
         assert_eq!(clean_optional(Some("   ".into())), None);
-        assert_eq!(clean_optional(Some(" reference ".into())).as_deref(), Some("reference"));
+        assert_eq!(
+            clean_optional(Some(" reference ".into())).as_deref(),
+            Some("reference")
+        );
+        assert!(normalize_retention("never_archive").is_ok());
+        assert!(normalize_retention("delete_everything").is_err());
     }
 }
