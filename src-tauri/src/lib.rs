@@ -1,3 +1,4 @@
+mod adopt;
 mod model;
 pub mod native_host;
 mod passport;
@@ -122,6 +123,14 @@ fn import_passport(
 }
 
 #[tauri::command]
+fn adopt_file(
+    state: tauri::State<'_, AppState>,
+    local_path: String,
+) -> Result<FilePassport, String> {
+    adopt::adopt_file(&state.database_path, local_path)
+}
+
+#[tauri::command]
 fn relink_file(
     state: tauri::State<'_, AppState>,
     download_id: i64,
@@ -184,6 +193,7 @@ pub fn run() {
             update_passport_metadata,
             export_passport,
             import_passport,
+            adopt_file,
             relink_file,
             scan_for_moves,
             import_os_provenance,
