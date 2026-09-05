@@ -1,0 +1,48 @@
+name: Diagnose OriginKeep 2.0 sidecar
+
+on:
+  push:
+    branches: [origin-2-universal-file-passport]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Install Tauri Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev patchelf
+      - name: Install Rust stable
+        run: rustup toolchain install stable --profile minimal
+      - name: Build native host and capture diagnostic
+        id: build
+        shell: bash
+        run: |
+          set +e
+          cargo +stable build --manifest-path src-tauri/Cargo.toml --bin originkeep-native-host --locked > sidecar.log 2>&1
+          code=$?
+          echo "exit_code=$code" >> "$GITHUB_OUTPUT"
+          tail -n 140 sidecar.log > sidecar-tail.log
+          exit 0
+      - name: Post diagnostic to PR
+        if: steps.build.outputs.exit_code != '0'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          {
+            echo '<!-- originkeep-sidecar-diagnostic -->'
+            echo 'Temporary OriginKeep 2.0 sidecar compiler diagnostic:'
+            echo '```text'
+            cat sidecar-tail.log
+            echo '```'
+          } > comment.md
+          gh pr comment 8 --body-file comment.md
+      - name: Fail if sidecar failed
+        if: steps.build.outputs.exit_code != '0'
+        run: exit 1
