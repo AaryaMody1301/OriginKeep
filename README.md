@@ -2,7 +2,7 @@
 
 **Downloads that remember where they came from.**
 
-OriginKeep is a local-first desktop application and browser companion for preserving download provenance, tracking source freshness, identifying duplicate and superseded files, and keeping version history explainable.
+OriginKeep is a local-first Windows desktop application and Chromium browser companion for preserving download provenance, tracking source freshness, identifying duplicate and superseded files, comparing versions, and making cleanup recoverable.
 
 The core relationship is:
 
@@ -10,19 +10,21 @@ The core relationship is:
 local file <-> origin <-> remote state <-> version lineage <-> recoverable lifecycle
 ```
 
-OriginKeep is intentionally **not** a download accelerator, cloud drive, or AI-first file organizer. Core functionality is designed to work locally without accounts, paid APIs, or a hosted backend.
+OriginKeep is intentionally **not** a download accelerator, cloud drive, malware scanner, or AI-first file organizer. Core functionality works without an account, hosted backend, paid API, or file upload.
 
-## Product goals
+## What OriginKeep does
 
-- Capture browser download provenance: initiating URL, final URL, referrer/source page when supplied, filename, MIME type, size, and timestamps.
-- Fingerprint local files so exact duplicates and local modifications are deterministic.
-- Group later downloads from the same source into version families.
-- Verify whether a public remote source is current, changed, missing, or unverifiable using standard HTTP evidence.
-- Compare supported local versions without uploading private files.
-- Make cleanup recoverable by retaining source, version and integrity metadata after a local copy moves into the OriginKeep archive.
-- Fail closed when local evidence cannot prove that archive or restore is safe.
+- Captures browser download provenance: initiating URL, final URL, referrer when supplied, filename, MIME type, size and timestamps.
+- Computes local SHA-256 fingerprints so exact duplicates and local modification are deterministic.
+- Groups primary downloads from the same canonical source into version families.
+- Verifies public remote freshness using HTTP validators without claiming certainty when evidence is weak.
+- Compares supported local text, CSV and PDF text-layer versions without uploading files.
+- Reviews duplicate/superseded storage with explicit keep-latest-N rules.
+- Archives cleanup candidates only after re-verifying the immutable download fingerprint.
+- Restores archived bytes without overwriting different data at the original path.
+- Recovers interrupted archive/restore operations from an explicit SQLite lifecycle ledger.
 
-## Evidence and lifecycle states
+## Evidence states
 
 Remote/version states:
 
@@ -35,71 +37,124 @@ Local/lifecycle states:
 ## Architecture
 
 ```text
-Chrome / Edge extension
+Chrome / Edge companion
         |
-        | download metadata
+        | browser download metadata
         v
-Native Messaging host
+Bundled Native Messaging host (Rust)
         |
         v
 OriginKeep desktop (Tauri + React + TypeScript + Rust)
         |
         +-- filesystem + SHA-256
-        +-- SQLite metadata + lifecycle ledger
-        +-- provenance/version engine
-        +-- conditional HTTP freshness checker
+        +-- SQLite provenance + lifecycle ledger
+        +-- deterministic version/duplicate engine
+        +-- hardened conditional HTTP freshness checker
         +-- local PDF/text/CSV comparison engines
-        +-- verified local archive + collision-safe restore
+        +-- verified archive + collision-safe restore
 ```
 
-## Roadmap
+## Security model
 
-### Phase 1 - Provenance foundation
+OriginKeep treats browser metadata, filesystem paths and remote servers as untrusted inputs.
 
-Desktop shell, browser download capture, native-message contract, SQLite provenance schema, SHA-256 fingerprinting, file detail/search surfaces, tests, and CI. **Completed.**
+- Native messages are length-bounded JSON and the host is allowlisted to a specific extension origin.
+- Remote checks are explicit user actions and support only public HTTP(S) destinations.
+- Release builds disable automatic redirects, validate every redirect hop, reject private/loopback/link-local/reserved targets, and pin validated DNS results into the request client.
+- Local file contents are never uploaded by core functionality.
+- Cleanup fails closed if SHA-256 evidence does not prove the local bytes are unchanged.
+- Restore refuses to overwrite a conflicting file.
 
-### Phase 2 - Version intelligence
+See [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md), [`SECURITY.md`](SECURITY.md), and [`PRIVACY.md`](PRIVACY.md).
 
-Canonical source identities, exact duplicate detection, deterministic version families, local-modification detection, and version timelines. **Completed.**
+## Browser companion
 
-### Phase 3 - Living downloads
+The Chromium Manifest V3 companion requests only:
 
-Conditional HTTP freshness checks, explicit remote-state evidence, remote disappearance/authentication handling, and local PDF/text/CSV comparisons. **Completed.**
+- `downloads`
+- `nativeMessaging`
 
-### Phase 4 - Safe lifecycle
+The repository release package uses a public manifest key so unpacked/release-package installs have deterministic extension ID:
 
-Recoverable cleanup, storage review, retention-policy previews, collision-safe restore, migration/recovery testing, NSIS Windows packaging, artifact attestations, threat modeling, and production hardening. **In progress on the Phase 4 branch.**
+`mplmkmbnahpggimgfihfgieamonbbobh`
 
-## Phase 4 Downloads Review
+The Windows installer registers the bundled native host for that exact origin in both Edge and Chrome. If a future browser store assigns a different ID, the `allowed_origins` list must be updated before publishing that store package.
 
-The final phase adds a deterministic `Downloads Review` instead of an opaque cleanup score. The review reports tracked, duplicate, superseded, archived and policy-selected byte totals and lets the user preview a keep-latest-N policy.
+## Windows release packaging
 
-A recommendation never deletes a file automatically. `Archive safely` is explicit and requires the current local SHA-256 to match the immutable download fingerprint. OriginKeep copies the file into its local application-data archive, flushes and re-hashes the copy, and only then removes the original path. Restore verifies the archive and refuses to overwrite different bytes already present at the original location.
+Tauri's NSIS installer contains both:
 
-Interrupted archive/restore states are written to SQLite before filesystem mutation and reconciled on the next launch from whichever copy can still be verified.
+- `originkeep.exe`
+- `originkeep-native-host.exe`
 
-## Release engineering
+The native host is built as a target-triple-specific Tauri external binary. NSIS install/uninstall hooks create and remove the current-user native-messaging registration.
 
-The Phase 4 branch enables Tauri's NSIS Windows bundle target and includes a tag/manual GitHub Actions release workflow. The workflow generates platform icons, builds the Windows installer, creates a **draft** GitHub release and generates an artifact attestation for the installer.
+The tag-triggered GitHub Actions release workflow builds the Windows installer, packages the browser companion ZIP, creates a **draft** release, and generates GitHub artifact provenance for the installer.
 
-Windows code-signing credentials are intentionally not stored in the repository. A public installer should remain draft until project-owned signing credentials are configured and the resulting package is reviewed. Artifact attestation establishes build provenance; it is not a substitute for Authenticode signing or a security audit.
+Windows Authenticode signing remains credential-dependent. An unsigned release candidate can trigger Windows reputation warnings; artifact attestation proves build provenance but is not code signing or a security audit.
 
-## Current status
+## Development
 
-Phases 1–3 are merged. Phase 4 is the final planned implementation phase and is being validated through the same strict frontend build, Rust formatting, Clippy and test gates used by earlier phases.
+Requirements:
 
-See:
+- Node.js 22+
+- Rust stable
+- current Tauri 2 Windows prerequisites for desktop development
 
-- [`docs/PHASE1.md`](docs/PHASE1.md) for provenance foundation rules.
-- [`docs/PHASE2.md`](docs/PHASE2.md) for identity, duplicate, versioning, migration, and acceptance rules.
-- [`docs/PHASE3.md`](docs/PHASE3.md) for freshness-state evidence and local comparison rules.
-- [`docs/PHASE4.md`](docs/PHASE4.md) for lifecycle invariants, recovery rules, retention policy and release acceptance.
-- [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md) for trust boundaries, destructive-operation defenses and residual risks.
+Typical commands:
 
-## Privacy boundary
+```bash
+npm ci
+npm run build
+cargo test --manifest-path src-tauri/Cargo.toml --all-targets --locked
+npm run tauri dev
+```
 
-OriginKeep is local-first. The core does not require a user account, cloud database, paid AI API, or hosted backend. Files remain local. Remote freshness checks contact only the recorded HTTP(S) source after an explicit user action; they do not upload the local file. Recoverable archive copies also remain in local OriginKeep application data.
+Windows installer build:
+
+```bash
+npm run bundle:windows
+```
+
+The release build prepares `originkeep-native-host` automatically before Tauri bundles the NSIS installer.
+
+## Roadmap status
+
+### Phase 1 — Provenance foundation
+
+Browser download capture, Native Messaging, SQLite provenance, SHA-256, search and CI. **Completed.**
+
+### Phase 2 — Version intelligence
+
+Canonical source identities, exact duplicates, deterministic version families, local modification detection and timelines. **Completed.**
+
+### Phase 3 — Living downloads
+
+Conditional remote freshness evidence, source disappearance/authentication states, local PDF/text/CSV comparisons. **Completed.**
+
+### Phase 4 — Safe lifecycle
+
+Downloads Review, retention preview, recoverable archive/restore, crash reconciliation, storage metrics, threat model and NSIS packaging. **Completed.**
+
+### Release candidate hardening
+
+Bundled native-host installation, deterministic companion packaging, private-network/redirect protection, frozen dependency builds, pinned CI/release actions, privacy/security documentation, Windows bundle CI and release checklist. **Release gate.**
+
+## Documentation
+
+- [`docs/PHASE1.md`](docs/PHASE1.md) — provenance foundation and development smoke test.
+- [`docs/PHASE2.md`](docs/PHASE2.md) — source identity, duplicates, versioning and migration.
+- [`docs/PHASE3.md`](docs/PHASE3.md) — remote evidence and local comparison rules.
+- [`docs/PHASE4.md`](docs/PHASE4.md) — lifecycle invariants, retention and recovery.
+- [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md) — trust boundaries and residual risks.
+- [`docs/RELEASE.md`](docs/RELEASE.md) — clean Windows release-candidate checklist.
+- [`PRIVACY.md`](PRIVACY.md) — local-first data handling.
+- [`SECURITY.md`](SECURITY.md) — vulnerability reporting and supported security boundaries.
+
+## Deferred after v0.1
+
+Scheduled freshness checks, notifications, authenticated source sessions, cloud sync, automatic re-download, bulk destructive cleanup and AI-driven cleanup decisions are deliberately outside the v0.1 release scope.
 
 ## License
 
-No open-source license has been selected yet. Until a license is added, normal copyright rules apply.
+No open-source license has been selected. Until the repository owner chooses and adds a license, normal copyright rules apply.

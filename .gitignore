@@ -5,6 +5,8 @@ dist/
 .DS_Store
 Thumbs.db
 src-tauri/target/
+src-tauri/binaries/*
+!src-tauri/binaries/.gitkeep
 *.db
 *.db-shm
 *.db-wal

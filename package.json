@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "icons": "tauri icon src-tauri/icons/icon.png",
+    "prepare:sidecar": "node scripts/prepare-sidecar.mjs",
     "bundle:windows": "npm run icons && tauri build --bundles nsis"
   },
   "dependencies": {
