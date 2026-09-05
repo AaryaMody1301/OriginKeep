@@ -15,6 +15,12 @@ pub struct DownloadCapture {
     pub started_at: Option<String>,
     pub completed_at: Option<String>,
     pub state: String,
+    pub browser_name: Option<String>,
+    pub page_title: Option<String>,
+    pub page_url: Option<String>,
+    pub link_text: Option<String>,
+    pub context_text: Option<String>,
+    pub context_source: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
