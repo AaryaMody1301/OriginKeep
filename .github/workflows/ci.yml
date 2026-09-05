@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, phase-1-provenance-foundation]
+    branches: [main]
   pull_request:
 
 permissions:
@@ -20,11 +20,18 @@ jobs:
       - run: npm run build
       - name: Validate extension manifest
         run: node -e "JSON.parse(require('fs').readFileSync('extension/manifest.json', 'utf8'))"
+      - name: Validate Tauri bundle config
+        run: node -e "const c=JSON.parse(require('fs').readFileSync('src-tauri/tauri.conf.json','utf8')); if(!c.bundle?.active || !c.bundle?.targets?.includes('nsis')) process.exit(1)"
 
   rust:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --ignore-scripts
+      - run: npm run icons
       - name: Install Tauri Linux dependencies
         run: |
           sudo apt-get update
