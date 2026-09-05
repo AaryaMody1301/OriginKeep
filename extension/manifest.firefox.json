@@ -1,0 +1,36 @@
+{
+  "manifest_version": 3,
+  "name": "OriginKeep Companion",
+  "version": "0.2.0",
+  "description": "Captures download provenance and local page context for the OriginKeep File Passport app.",
+  "permissions": ["downloads", "nativeMessaging", "storage"],
+  "background": {
+    "scripts": ["service-worker.js"]
+  },
+  "content_scripts": [
+    {
+      "matches": ["http://*/*", "https://*/*"],
+      "js": ["context-capture.js"],
+      "run_at": "document_start"
+    }
+  ],
+  "action": {
+    "default_title": "OriginKeep Companion",
+    "default_icon": "icon.png"
+  },
+  "icons": {
+    "16": "icon.png",
+    "32": "icon.png",
+    "48": "icon.png",
+    "128": "icon.png"
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "originkeep@aaryamody.local",
+      "strict_min_version": "121.0",
+      "data_collection_permissions": {
+        "required": ["websiteActivity", "websiteContent"]
+      }
+    }
+  }
+}
