@@ -40,8 +40,8 @@ OriginKeep desktop (Tauri + React + TypeScript + Rust)
         +-- filesystem + SHA-256
         +-- SQLite metadata store
         +-- provenance/version engine
-        +-- freshness checker
-        +-- local diff engines
+        +-- conditional HTTP freshness checker
+        +-- local PDF/text/CSV comparison engines
 ```
 
 ## Roadmap
@@ -52,11 +52,11 @@ Desktop shell, browser download capture, native-message contract, SQLite provena
 
 ### Phase 2 - Version intelligence
 
-Canonical source identities, exact duplicate detection, deterministic version families, local-modification detection, and version timelines. **In progress.**
+Canonical source identities, exact duplicate detection, deterministic version families, local-modification detection, and version timelines. **Completed.**
 
 ### Phase 3 - Living downloads
 
-Conditional HTTP freshness checks, explicit remote-state evidence, remote disappearance/authentication handling, and local PDF/text/CSV comparisons.
+Conditional HTTP freshness checks, explicit remote-state evidence, remote disappearance/authentication handling, and local PDF/text/CSV comparisons. **In progress.**
 
 ### Phase 4 - Safe lifecycle
 
@@ -64,13 +64,19 @@ Recoverable cleanup, source-aware restore, storage review, retention policies, r
 
 ## Current status
 
-Phase 1 is merged. Phase 2 is implementing deterministic version intelligence without filename guessing or remote-freshness claims.
+Phases 1 and 2 are merged. Phase 3 adds explicit, user-triggered HTTP freshness evidence and bounded local comparison without weakening the local-first privacy boundary.
 
-See [`docs/PHASE2.md`](docs/PHASE2.md) for the identity, duplicate, versioning, migration, and acceptance rules.
+Remote checks use stored HTTP validators when available, record append-only evidence, and intentionally keep the first baseline-only check as `SOURCE_UNKNOWN` rather than guessing that a source is current. Local comparison supports UTF-8 text, CSV, and PDF text layers; files are not uploaded.
+
+See:
+
+- [`docs/PHASE1.md`](docs/PHASE1.md) for provenance foundation rules.
+- [`docs/PHASE2.md`](docs/PHASE2.md) for identity, duplicate, versioning, migration, and acceptance rules.
+- [`docs/PHASE3.md`](docs/PHASE3.md) for freshness-state evidence and local comparison rules.
 
 ## Privacy boundary
 
-OriginKeep is local-first. The planned core does not require a user account, cloud database, paid AI API, or hosted backend. Files remain local unless a user explicitly chooses an operation that contacts the original source.
+OriginKeep is local-first. The core does not require a user account, cloud database, paid AI API, or hosted backend. Files remain local. Remote freshness checks contact only the recorded HTTP(S) source after an explicit user action; they do not upload the local file.
 
 ## License
 
