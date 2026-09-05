@@ -1,5 +1,6 @@
 import { FormEvent, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import "./adopt.css";
 
 export default function AdoptExisting() {
   const [filePath, setFilePath] = useState("");
