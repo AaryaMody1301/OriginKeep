@@ -1,4 +1,5 @@
 mod adopt;
+mod browser_setup;
 mod model;
 pub mod native_host;
 mod passport;
@@ -8,6 +9,7 @@ mod secure_remote;
 mod storage;
 mod trust;
 
+use browser_setup::BrowserSetupResult;
 use model::{DownloadRecord, VerificationSummary};
 use passport::{FilePassport, MoveScanResult, OriginGraph, PassportExport, RelinkResult};
 use phase3::{ComparisonResult, RemoteEvidence};
@@ -169,6 +171,11 @@ fn inspect_trust(
     trust::inspect(&state.database_path, download_id)
 }
 
+#[tauri::command]
+fn register_browser_integrations() -> Result<BrowserSetupResult, String> {
+    browser_setup::register()
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let database_path = storage::default_database_path()
@@ -198,7 +205,8 @@ pub fn run() {
             scan_for_moves,
             import_os_provenance,
             origin_graph,
-            inspect_trust
+            inspect_trust,
+            register_browser_integrations
         ])
         .run(tauri::generate_context!())
         .expect("error while running OriginKeep");
