@@ -24,87 +24,62 @@ jobs:
           from pathlib import Path
 
           path = Path("src-tauri/src/passport.rs")
-          text = path.read_text()
+          lines = path.read_text().splitlines()
 
-          old = """        statement
-              .query_map([], |row| row.get::<_, i64>(0))
-              .map_err(|error| error.to_string())?
-              .collect::<rusqlite::Result<Vec<_>>>()
-              .map_err(|error| error.to_string())?
-          """
-          new = """        let rows = statement
-              .query_map([], |row| row.get::<_, i64>(0))
-              .map_err(|error| error.to_string())?;
-          rows.collect::<rusqlite::Result<Vec<_>>>()
-              .map_err(|error| error.to_string())?
-          """
-          if text.count(old) != 1:
-              raise SystemExit(f"Expected one list_passports replacement, found {text.count(old)}")
-          text = text.replace(old, new, 1)
+          def indent_of(line):
+              return line[: len(line) - len(line.lstrip())]
 
-          old = """    statement
-              .query_map([download_id], |row| {
-                  Ok(FileLocation {
-                      path: row.get(0)?,
-                      is_current: row.get::<_, i64>(1)? != 0,
-                      first_seen: row.get(2)?,
-                      last_seen: row.get(3)?,
-                  })
-              })?
-              .collect()
-          """
-          new = """    let rows = statement.query_map([download_id], |row| {
-              Ok(FileLocation {
-                  path: row.get(0)?,
-                  is_current: row.get::<_, i64>(1)? != 0,
-                  first_seen: row.get(2)?,
-                  last_seen: row.get(3)?,
-              })
-          })?;
-          rows.collect()
-          """
-          if text.count(old) != 1:
-              raise SystemExit(f"Expected one load_locations replacement, found {text.count(old)}")
-          text = text.replace(old, new, 1)
+          def find_start(predicate):
+              matches = []
+              for index, line in enumerate(lines[:-1]):
+                  if line.strip() == "statement" and predicate(lines[index + 1].strip()):
+                      matches.append(index)
+              if len(matches) != 1:
+                  raise SystemExit(f"Expected one matching statement block, found {len(matches)}")
+              return matches[0]
 
-          old = """        statement
-              .query_map([], |row| {
-                  Ok((
-                      row.get(0)?,
-                      row.get(1)?,
-                      row.get(2)?,
-                      row.get(3)?,
-                      row.get(4)?,
-                      row.get(5)?,
-                      row.get(6)?,
-                      row.get(7)?,
-                  ))
-              })
-              .map_err(|error| error.to_string())?
-              .collect::<rusqlite::Result<Vec<_>>>()
-              .map_err(|error| error.to_string())?
-          """
-          new = """        let rows = statement
-              .query_map([], |row| {
-                  Ok((
-                      row.get(0)?,
-                      row.get(1)?,
-                      row.get(2)?,
-                      row.get(3)?,
-                      row.get(4)?,
-                      row.get(5)?,
-                      row.get(6)?,
-                      row.get(7)?,
-                  ))
-              })
-              .map_err(|error| error.to_string())?;
-          rows.collect::<rusqlite::Result<Vec<_>>>()
-              .map_err(|error| error.to_string())?
-          """
-          if text.count(old) != 1:
-              raise SystemExit(f"Expected one origin graph replacement, found {text.count(old)}")
-          text = text.replace(old, new, 1)
-          path.write_text(text)
+          def finish_collected_block(start):
+              collect_index = None
+              for index in range(start + 1, min(start + 40, len(lines))):
+                  if lines[index].strip() == ".collect::<rusqlite::Result<Vec<_>>>()":
+                      collect_index = index
+                      break
+              if collect_index is None or collect_index + 1 >= len(lines):
+                  raise SystemExit("Could not locate collected rusqlite block end")
+              end = collect_index + 1
+              if lines[end].strip() != ".map_err(|error| error.to_string())?":
+                  raise SystemExit("Unexpected collected rusqlite block ending")
+              indent = indent_of(lines[start])
+              lines[start] = indent + "let rows = statement"
+              lines[end] = lines[end] + ";"
+              lines.insert(end + 1, indent + "rows")
+
+          list_start = find_start(
+              lambda next_line: "query_map([], |row| row.get::<_, i64>(0))" in next_line
+          )
+          finish_collected_block(list_start)
+
+          location_start = find_start(
+              lambda next_line: "query_map([download_id], |row|" in next_line
+          )
+          location_end = None
+          for index in range(location_start + 1, min(location_start + 30, len(lines))):
+              if lines[index].strip() == ".collect()":
+                  location_end = index
+                  break
+          if location_end is None:
+              raise SystemExit("Could not locate load_locations collect")
+          location_indent = indent_of(lines[location_start])
+          lines[location_start] = location_indent + "let rows = statement"
+          lines[location_end] = lines[location_end] + ";"
+          lines.insert(location_end + 1, location_indent + "rows")
+
+          graph_start = find_start(
+              lambda next_line: next_line == ".query_map([], |row| {"
+          )
+          finish_collected_block(graph_start)
+
+          path.write_text("\n".join(lines) + "\n")
 
           trust = Path("src-tauri/src/trust.rs")
           trust_text = trust.read_text()
