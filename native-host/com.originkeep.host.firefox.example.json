@@ -1,0 +1,7 @@
+{
+  "name": "com.originkeep.host",
+  "description": "OriginKeep local provenance capture host",
+  "path": "/absolute/path/to/originkeep-native-host",
+  "type": "stdio",
+  "allowed_extensions": ["originkeep@aaryamody.local"]
+}
