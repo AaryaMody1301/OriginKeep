@@ -1,69 +1,125 @@
-# OriginKeep v0.1 Release Checklist
+# OriginKeep 2.0 Release Checklist
 
-This checklist is the release gate for the first public release candidate and stable v0.1 release.
+This checklist is the release gate for OriginKeep File Passport release candidates. GitHub can prove that an artifact was built from reviewed source; it cannot perform the interactive browser/install acceptance steps or supply project-owned platform signing credentials.
 
 ## Build invariants
 
-- `package-lock.json` and `src-tauri/Cargo.lock` are committed.
+- `package-lock.json` and `src-tauri/Cargo.lock` are committed and match the 0.2 manifests.
 - CI uses `npm ci` and Cargo `--locked` modes.
 - GitHub Actions are pinned to full commit SHAs.
-- Frontend build, extension manifest validation, Rust format, strict Clippy and Rust tests pass.
-- A Windows CI job successfully builds the NSIS installer.
-- The native host is prepared with the current Windows target triple and bundled through Tauri `externalBin`.
-- The companion extension is packaged from the same commit/tag as the installer.
+- Frontend build and Chromium/Firefox manifest validation pass.
+- Browser-specific companion staging produces one valid `manifest.json` per package.
+- Rust format, strict Clippy and the full Rust test suite pass.
+- Linux desktop code compiles with the Linux Tauri override.
+- macOS desktop code compiles with the macOS Tauri override.
+- Windows CI successfully builds the real NSIS installer.
+- The native host is bundled through Tauri `externalBin`.
+- The Windows smoke artifact contains the NSIS installer plus separate Chromium and Firefox companion ZIPs.
+- Tag-release automation is configured for Windows NSIS, macOS DMG, Linux DEB/AppImage, Chromium ZIP and Firefox ZIP.
+- Release artifacts are built from the same Git tag and are covered by GitHub artifact attestations where configured.
 
-## Clean Windows release-candidate test
+## File Passport acceptance
 
-Use a Windows machine or VM that has never run OriginKeep.
+1. Capture a Chrome/Edge/Firefox download from a normal HTTP(S) link.
+2. Verify source URL, SHA-256, page title/page URL and link context appear in the File Passport when a context match exists.
+3. Verify unrelated browsing/click context does not appear as arbitrary tracked history.
+4. Set a purpose, note, review date and retention intent; restart and confirm persistence.
+5. Export `file.ext.originkeep.json` and confirm it does not contain the original absolute local path.
+6. Copy the asset + passport together and import them; confirm import succeeds only when SHA-256 matches.
+7. Modify the asset and confirm passport import fails.
+8. Rename/move a tracked file, verify it becomes missing, and relink it at the new path only when SHA-256 matches.
+9. Run an explicit move scan against a bounded test directory and verify only exact identities are reconnected.
+10. Adopt an existing local file and confirm it enters the normal duplicate/version engine.
+11. Import OS provenance and confirm it is displayed as supplemental evidence rather than identity proof.
+12. Inspect the Origin Graph and verify source/version/duplicate edges correspond to real database evidence.
 
-1. Download the draft/release-candidate NSIS installer and companion ZIP from the same GitHub release.
-2. Verify the release assets came from the intended GitHub tag/commit and inspect the GitHub artifact attestation for the installer.
-3. Install OriginKeep for the current user.
-4. Confirm `originkeep.exe` and `originkeep-native-host.exe` are installed together.
-5. Confirm the installer created the Edge and Chrome `NativeMessagingHosts\\com.originkeep.host` HKCU registry entries.
-6. Extract the companion ZIP and load it unpacked in Edge or Chrome.
-7. Confirm the extension ID is `mplmkmbnahpggimgfihfgieamonbbobh` for the repository release package.
-8. Download a small public file.
-9. Open/refresh OriginKeep and verify provenance, local path, size, MIME type and SHA-256 appear.
-10. Download the same bytes again and verify exact-duplicate evidence.
-11. Download a changed file from the same stable source and verify version lineage.
-12. Run **Verify local files** and confirm unchanged bytes remain `PRESENT`.
-13. Trigger a public remote freshness check and verify evidence is stored.
-14. Verify freshness checks reject loopback/private destinations and do not follow a public redirect into a private address.
-15. Compare supported local versions for text/CSV/PDF-text content.
-16. Use **Downloads Review** to preview cleanup candidates.
-17. Archive one unchanged candidate and verify the original path is removed only after the local archive copy passes SHA-256 verification.
-18. Restore it and verify the bytes return to the original path.
-19. Create different bytes at a restore destination and verify OriginKeep refuses to overwrite them.
-20. Uninstall OriginKeep and verify the native-messaging registry entries and host manifest are removed.
-21. Confirm local application data is not silently destroyed by uninstall.
+## Trust Lens acceptance
 
-## Browser-store boundary
+1. An unchanged file reports matching SHA-256 integrity.
+2. A locally modified file reports the mismatch and does not keep an integrity-success state.
+3. Remote evidence mirrors the existing deterministic freshness state rather than deriving a new score.
+4. A file without C2PA shows an explicit absent/unavailable result rather than `TRUSTED`.
+5. A valid C2PA file distinguishes `VALID_UNTRUSTED` from `TRUSTED` according to the configured trust anchors.
+6. A file without an adjacent `.sigstore.json` reports Sigstore as not present.
+7. A valid adjacent Sigstore bundle verifies against the already-recorded SHA-256.
+8. An invalid bundle/digest mismatch does not produce `VERIFIED`.
+9. No Trust Lens result is marketed as malware detection or a global safety verdict.
 
-The repository release package uses a deterministic manifest key so an unpacked extension has a stable ID. If Microsoft Edge Add-ons or Chrome Web Store assigns a different ID, update the native host `allowed_origins` list and repeat the clean-install test with the real published package before claiming store compatibility.
+## Browser acceptance
 
-## Signing boundary
+### Chromium-family
 
-Release candidates may be unsigned and can trigger Windows reputation warnings. A stable installer should be Authenticode-signed when project-owned signing is available. GitHub artifact attestation proves build provenance; it does not replace code signing or a security review.
+1. Load the Chromium release ZIP.
+2. Confirm the development/release-package extension ID is `mplmkmbnahpggimgfihfgieamonbbobh` unless testing a real store-assigned ID.
+3. Confirm download provenance/native messaging works.
+4. Confirm matched click context reaches only the local OriginKeep app.
+
+### Firefox
+
+1. Load/sign the Firefox release package as appropriate for the test channel.
+2. Confirm explicit ID `originkeep@aaryamody.local` for the repository package.
+3. Confirm the host manifest uses `allowed_extensions` and native messaging succeeds.
+4. Confirm downloads and matched context are captured.
+5. Confirm the manifest's `websiteActivity` / `websiteContent` data categories match the actual local-native transfer behavior before AMO submission.
+
+### Safari/macOS
+
+Do not claim automatic Safari download capture under the current API surface.
+
+1. Download/save a file using Safari normally.
+2. Use **Create passport** in the OriginKeep desktop app.
+3. Confirm the local file is SHA-256 fingerprinted.
+4. Where macOS retained it, confirm `kMDItemWhereFroms` provenance is imported.
+5. Confirm the resulting Passport supports the same local integrity/version/lifecycle/Trust Lens functionality that applies to an adopted file.
+
+## Clean Windows test
+
+Use a Windows machine or VM that has never run the tested OriginKeep version.
+
+1. Install the NSIS package for the current user.
+2. Confirm `originkeep.exe` and `originkeep-native-host.exe` are installed together.
+3. Confirm HKCU native-messaging registration exists for Edge, Chrome and Mozilla Firefox.
+4. Confirm Chromium host JSON uses `allowed_origins` and Firefox JSON uses `allowed_extensions`.
+5. Exercise one real download through each installed supported browser.
+6. Verify provenance, SHA, version/duplicate logic, remote freshness and Downloads Review.
+7. Verify archive/restore round-trip and collision refusal.
+8. Uninstall and confirm browser native-host registrations/manifests are removed.
+9. Confirm application data is not silently destroyed by uninstall.
+
+## Clean macOS test
+
+1. Build/install the DMG/app in the intended test environment.
+2. Confirm the bundled `originkeep-native-host` is present.
+3. Use **Register browser integrations** and verify per-user Chrome/Edge/Firefox native-host manifests point at the installed host.
+4. Exercise Chrome/Firefox automatic capture where installed.
+5. Exercise Safari/local-adoption + `kMDItemWhereFroms` flow.
+6. Verify portable passport export/import and move recovery.
+7. Confirm Gatekeeper/signing behavior is documented accurately for the candidate.
+
+## Clean Linux test
+
+1. Test both the intended DEB/AppImage distribution formats where practical.
+2. Confirm the bundled native host launches.
+3. Use **Register browser integrations** and verify per-user Chromium/Firefox manifests.
+4. Exercise automatic capture through installed supported browsers.
+5. Exercise local adoption and move recovery.
+6. Confirm archive/restore and remote-source security checks.
+
+## Browser-store ID boundary
+
+Repository packages use deterministic development/release IDs. If a browser store assigns a different ID, update the corresponding native-host allowlist and repeat the clean browser/platform acceptance test with the actual store package before claiming store compatibility.
+
+## Signing/notarization boundary
+
+Release candidates can be unsigned/unnotarized and may trigger Windows/macOS/Linux distribution warnings or blocks depending on platform policy. Stable public packages should use project-owned signing/notarization when available.
+
+GitHub artifact attestation proves build provenance; it does not replace Authenticode, Apple signing/notarization, package-repository trust, browser-store review or a security audit.
 
 ## Release sequence
 
-1. Merge the release-candidate hardening PR only after CI is green.
-2. Tag `v0.1.0-rc.1` from the reviewed `main` commit.
-3. Let the tag-triggered workflow create a draft release with the NSIS installer and companion ZIP.
-4. Perform the clean Windows checklist above.
-5. Fix any release-only issue through a normal PR and create another RC tag if needed.
-6. Tag `v0.1.0` only when the checklist passes.
-7. Publish the stable draft after final asset/signing review.
-
-## Deferred post-v0.1 work
-
-The following are intentionally not release blockers:
-
-- scheduled/background freshness checks;
-- change notifications and update digests;
-- authenticated source sessions;
-- cloud sync or backup;
-- automatic remote re-download;
-- bulk destructive cleanup;
-- AI-generated cleanup decisions.
+1. Merge OriginKeep 2.0 only after all repository CI jobs are green.
+2. Tag a reviewed `main` commit with a version beginning `v0.2.0` (for example `v0.2.0-rc.1`).
+3. Let the tag workflow create a draft release and attach all platform/browser artifacts.
+4. Perform the relevant clean-platform/browser tests above.
+5. Fix release-only findings through normal PRs and issue another RC as needed.
+6. Publish a stable `v0.2.0` only after the intended distribution targets pass acceptance and the README/store descriptions match reality.
