@@ -1,0 +1,8 @@
+.v2-adopt { max-width: 1444px; margin: 0 auto 28px; padding: 16px 18px; border: 1px solid #d8d8d8; border-radius: 14px; background: #fff; display: grid; grid-template-columns: minmax(260px, .8fr) minmax(0, 1.6fr); gap: 16px; align-items: end; }
+.v2-adopt strong { display: block; margin: 4px 0; }
+.v2-adopt small { color: #666; line-height: 1.4; }
+.v2-adopt form { display: grid; grid-template-columns: 1fr 1fr auto; gap: 8px; }
+.v2-adopt input { box-sizing: border-box; width: 100%; border: 1px solid #c8c8c8; border-radius: 9px; padding: 9px 11px; font: inherit; }
+.v2-adopt button { border: 1px solid #111; background: #111; color: #fff; border-radius: 9px; padding: 9px 13px; font: inherit; cursor: pointer; }
+.v2-adopt-message { grid-column: 1 / -1; }
+@media (max-width: 900px) { .v2-adopt { margin: 0 12px 18px; grid-template-columns: 1fr; } .v2-adopt form { grid-template-columns: 1fr; } }
