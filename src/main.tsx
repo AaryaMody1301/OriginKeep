@@ -1,10 +1,10 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import App from "./App";
+import OriginKeep2 from "./OriginKeep2";
 import "./styles.css";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <App />
+    <OriginKeep2 />
   </StrictMode>,
 );
