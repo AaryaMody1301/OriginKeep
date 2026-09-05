@@ -877,8 +877,7 @@ mod tests {
 
     #[test]
     fn text_comparison_reports_line_changes() {
-        let (summary, details) =
-            compare_text_content("alpha\nbeta\n", "alpha\ngamma\n", "Text");
+        let (summary, details) = compare_text_content("alpha\nbeta\n", "alpha\ngamma\n", "Text");
         assert!(summary.contains("1 added line"));
         assert!(summary.contains("1 removed line"));
         assert!(details.iter().any(|detail| detail.contains("beta")));
