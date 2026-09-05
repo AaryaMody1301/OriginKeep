@@ -1,97 +1,173 @@
 # OriginKeep
 
-**Downloads that remember where they came from.**
+**Every file remembers where it came from, why you saved it, whether it changed, and how to get it back.**
 
-OriginKeep is a local-first Windows desktop application and Chromium browser companion for preserving download provenance, tracking source freshness, identifying duplicate and superseded files, comparing versions, and making cleanup recoverable.
-
-The core relationship is:
+OriginKeep is a local-first **File Passport** system for downloaded and existing files. It combines browser provenance, deterministic content identity, source freshness, version lineage, authenticity evidence and recoverable cleanup without requiring an account, hosted backend or file upload.
 
 ```text
-local file <-> origin <-> remote state <-> version lineage <-> recoverable lifecycle
+origin + context + exact bytes + trust evidence + freshness + lineage + recovery
+                                |
+                                v
+                         ORIGINKEEP PASSPORT
 ```
 
-OriginKeep is intentionally **not** a download accelerator, cloud drive, malware scanner, or AI-first file organizer. Core functionality works without an account, hosted backend, paid API, or file upload.
+OriginKeep is intentionally not an antivirus, cloud drive, download accelerator, AI chatbot or automatic destructive file organizer.
 
-## What OriginKeep does
+## What makes OriginKeep different
 
-- Captures browser download provenance: initiating URL, final URL, referrer when supplied, filename, MIME type, size and timestamps.
-- Computes local SHA-256 fingerprints so exact duplicates and local modification are deterministic.
-- Groups primary downloads from the same canonical source into version families.
-- Verifies public remote freshness using HTTP validators without claiming certainty when evidence is weak.
-- Compares supported local text, CSV and PDF text-layer versions without uploading files.
-- Reviews duplicate/superseded storage with explicit keep-latest-N rules.
-- Archives cleanup candidates only after re-verifying the immutable download fingerprint.
-- Restores archived bytes without overwriting different data at the original path.
-- Recovers interrupted archive/restore operations from an explicit SQLite lifecycle ledger.
+A normal download remembers mostly its filename and folder. An OriginKeep Passport can answer:
 
-## Evidence states
+- **Origin** — where did these bytes come from?
+- **Context** — what page/link was I looking at and why did I save it?
+- **Identity** — is this still the same exact file after a move, rename or copy?
+- **Integrity** — did my local bytes change?
+- **Freshness** — is there evidence that the remote source changed?
+- **Authenticity** — what can Windows, C2PA or Sigstore independently verify?
+- **Lineage** — which deterministic version or exact duplicate is this?
+- **Recovery** — can I archive it safely and restore it without overwriting other data?
 
-Remote/version states:
+There is no opaque AI or “trust score.” Each state is backed by inspectable evidence.
 
-`CURRENT` · `CHANGED` · `DUPLICATE` · `SUPERSEDED` · `SOURCE_MISSING` · `SOURCE_UNKNOWN` · `AUTH_REQUIRED` · `CHECK_FAILED`
+## Core capabilities
 
-Local/lifecycle states:
+### Universal File Passport
 
-`PRESENT` · `LOCAL_MODIFIED` · `LOCAL_MISSING` · `ARCHIVING` · `ARCHIVED` · `RESTORING` · `ERROR`
+- persistent origin/context/identity/freshness/lineage/recovery view;
+- optional user purpose, note and review/expiry metadata;
+- portable `<file>.originkeep.json` export/import linked to exact SHA-256;
+- open documented passport format in [`docs/PASSPORT_SPEC.md`](docs/PASSPORT_SPEC.md).
+
+### Download context
+
+Chrome/Edge/Firefox can capture the download URL, final URL, referrer, filename, MIME, size and timestamps.
+
+Enhanced context is **opt-in** from the companion popup. When enabled it can additionally retain:
+
+- page title and URL;
+- clicked link/button text;
+- bounded nearby page text.
+
+The extra HTTP/HTTPS host permission is requested only after the user explicitly enables enhanced context.
+
+### Content identity after moves and copies
+
+SHA-256 is the identity anchor. OriginKeep records multiple verified locations for identical bytes and can reconnect a moved file only after an exact hash match. Filename similarity never establishes identity.
+
+### Existing-file adoption
+
+Files that predate OriginKeep can be adopted and hashed.
+
+- Windows: imports `Zone.Identifier` / Mark-of-the-Web evidence when available.
+- macOS: imports `kMDItemWhereFroms` when available.
+- Linux: keeps source unknown unless evidence or a user-provided source exists.
+- Safari fallback context can be associated with a later macOS adoption without claiming automatic Downloads API parity.
+
+### Trust Lens
+
+Trust Lens reports separate evidence channels:
+
+- local SHA-256 integrity — built in;
+- Windows origin metadata — Windows;
+- Authenticode — Windows PowerShell verification;
+- C2PA Content Credentials — optional official `c2patool` integration;
+- Sigstore — optional `cosign verify-blob` integration with an explicit expected identity and OIDC issuer.
+
+Unavailable tools produce explicit unavailable/policy-required states. Absence of a signature is not treated as malware, and presence of metadata is not treated as truth.
+
+### Living downloads
+
+- canonical HTTP(S) source identities;
+- deterministic version families and exact duplicates;
+- conditional ETag / Last-Modified checks;
+- explicit `CURRENT`, `CHANGED`, `AUTH_REQUIRED`, `SOURCE_MISSING`, `SOURCE_UNKNOWN`, `CHECK_FAILED` states;
+- hardened redirect/DNS/private-network boundary;
+- local text, CSV and PDF text-layer comparison.
+
+### Recoverable lifecycle
+
+- Downloads Review with explicit keep-latest-N policy;
+- duplicate/superseded cleanup candidates;
+- archive only after immutable SHA-256 re-verification;
+- collision-safe restore;
+- crash/interruption reconciliation;
+- storage analytics and lifecycle ledger.
+
+### Origin Graph
+
+OriginKeep derives an evidence graph rather than an AI graph:
+
+```text
+SOURCE --PRODUCED--> FILE --HAS_CONTENT--> SHA-256 --LOCATED_AT--> PATH
+                    |
+                    +--NEXT_VERSION--> FILE
+                    +--SAME_CONTENT--> SHA-256
+```
+
+## Browser support
+
+| Browser | Automatic provenance | Native host | Enhanced context |
+| --- | --- | --- | --- |
+| Chrome | Yes | Yes | Optional |
+| Edge | Yes | Yes | Optional |
+| Chromium | Yes | Yes | Optional |
+| Firefox | Yes | Yes | Optional |
+| Brave / Vivaldi | Chromium API dependent | Linux/macOS registration included | Optional |
+| Safari | Adoption-based fallback | Safari containing-app bridge | Optional fallback context |
+
+Chromium and Firefox are packaged separately because Firefox MV3 uses its background-script model and explicit Gecko extension ID.
+
+See [`docs/ORIGINKEEP_2.md`](docs/ORIGINKEEP_2.md) and [`docs/SAFARI.md`](docs/SAFARI.md).
+
+## Desktop support
+
+| Platform | Packages | Browser integration |
+| --- | --- | --- |
+| Windows | NSIS | Installer registers Chrome, Edge and Firefox |
+| Linux | AppImage + Debian package | App installs stable per-user native-host manifests |
+| macOS | `.app` + DMG | App installs stable per-user native-host manifests |
+
+macOS CI uses ad-hoc signing to verify the build. Trusted public macOS distribution still requires Apple signing/notarization.
 
 ## Architecture
 
 ```text
-Chrome / Edge companion
-        |
-        | browser download metadata
+Chrome / Edge / Firefox
+        | downloads + optional context
         v
-Bundled Native Messaging host (Rust)
+Native Messaging host (Rust)
         |
-        v
-OriginKeep desktop (Tauri + React + TypeScript + Rust)
+        +------------------------------+
+        |                              |
+        v                              v
+OriginKeep desktop              Safari fallback context
+Tauri + React + Rust            via containing-app bridge
         |
-        +-- filesystem + SHA-256
-        +-- SQLite provenance + lifecycle ledger
+        +-- SQLite Passport/context/trust/location ledger
+        +-- SHA-256 content identity
         +-- deterministic version/duplicate engine
         +-- hardened conditional HTTP freshness checker
-        +-- local PDF/text/CSV comparison engines
+        +-- local PDF/text/CSV comparison
+        +-- Trust Lens evidence adapters
         +-- verified archive + collision-safe restore
+        +-- portable File Passport import/export
 ```
 
-## Security model
+## Security and privacy
 
-OriginKeep treats browser metadata, filesystem paths and remote servers as untrusted inputs.
+OriginKeep treats browser metadata, local paths, portable passports and remote servers as untrusted input.
 
-- Native messages are length-bounded JSON and the host is allowlisted to a specific extension origin.
-- Remote checks are explicit user actions and support only public HTTP(S) destinations.
-- Release builds disable automatic redirects, validate every redirect hop, reject private/loopback/link-local/reserved targets, and pin validated DNS results into the request client.
+- Native messages are length-bounded JSON.
+- Browser native hosts allow only explicit extension IDs/origins.
+- Enhanced browsing context is optional and stored locally.
+- Remote freshness checks are explicit and public HTTP(S)-only.
+- Every redirect destination is revalidated and private/loopback/link-local/reserved destinations are blocked.
+- Browser cookies/authenticated session credentials are not replayed.
 - Local file contents are never uploaded by core functionality.
-- Cleanup fails closed if SHA-256 evidence does not prove the local bytes are unchanged.
-- Restore refuses to overwrite a conflicting file.
+- Cleanup fails closed if SHA-256 evidence no longer matches.
+- Restore refuses to overwrite conflicting bytes.
+- Portable passport import re-hashes the adjacent file before accepting metadata.
 
-See [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md), [`SECURITY.md`](SECURITY.md), and [`PRIVACY.md`](PRIVACY.md).
-
-## Browser companion
-
-The Chromium Manifest V3 companion requests only:
-
-- `downloads`
-- `nativeMessaging`
-
-The repository release package uses a public manifest key so unpacked/release-package installs have deterministic extension ID:
-
-`mplmkmbnahpggimgfihfgieamonbbobh`
-
-The Windows installer registers the bundled native host for that exact origin in both Edge and Chrome. If a future browser store assigns a different ID, the `allowed_origins` list must be updated before publishing that store package.
-
-## Windows release packaging
-
-Tauri's NSIS installer contains both:
-
-- `originkeep.exe`
-- `originkeep-native-host.exe`
-
-The native host is built as a target-triple-specific Tauri external binary. NSIS install/uninstall hooks create and remove the current-user native-messaging registration.
-
-The tag-triggered GitHub Actions release workflow builds the Windows installer, packages the browser companion ZIP, creates a **draft** release, and generates GitHub artifact provenance for the installer.
-
-Windows Authenticode signing remains credential-dependent. An unsigned release candidate can trigger Windows reputation warnings; artifact attestation proves build provenance but is not code signing or a security audit.
+See [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md), [`PRIVACY.md`](PRIVACY.md), and [`SECURITY.md`](SECURITY.md).
 
 ## Development
 
@@ -99,9 +175,7 @@ Requirements:
 
 - Node.js 22+
 - Rust stable
-- current Tauri 2 Windows prerequisites for desktop development
-
-Typical commands:
+- Tauri 2 platform prerequisites for the platform being built
 
 ```bash
 npm ci
@@ -110,50 +184,49 @@ cargo test --manifest-path src-tauri/Cargo.toml --all-targets --locked
 npm run tauri dev
 ```
 
-Windows installer build:
+Browser packages:
+
+```bash
+npm run prepare:browsers
+```
+
+Desktop bundles:
 
 ```bash
 npm run bundle:windows
+npm run bundle:linux
+npm run bundle:macos
 ```
 
-The release build prepares `originkeep-native-host` automatically before Tauri bundles the NSIS installer.
+Safari Xcode project generation must be run on macOS with Xcode:
 
-## Roadmap status
+```bash
+./scripts/prepare-safari-project.sh
+```
 
-### Phase 1 — Provenance foundation
+## Implementation history
 
-Browser download capture, Native Messaging, SQLite provenance, SHA-256, search and CI. **Completed.**
-
-### Phase 2 — Version intelligence
-
-Canonical source identities, exact duplicates, deterministic version families, local modification detection and timelines. **Completed.**
-
-### Phase 3 — Living downloads
-
-Conditional remote freshness evidence, source disappearance/authentication states, local PDF/text/CSV comparisons. **Completed.**
-
-### Phase 4 — Safe lifecycle
-
-Downloads Review, retention preview, recoverable archive/restore, crash reconciliation, storage metrics, threat model and NSIS packaging. **Completed.**
-
-### Release candidate hardening
-
-Bundled native-host installation, deterministic companion packaging, private-network/redirect protection, frozen dependency builds, pinned CI/release actions, privacy/security documentation, Windows bundle CI and release checklist. **Release gate.**
+- **Phase 1 — Provenance foundation:** completed.
+- **Phase 2 — Version intelligence:** completed.
+- **Phase 3 — Living downloads:** completed.
+- **Phase 4 — Safe lifecycle:** completed.
+- **v0.1 release hardening:** completed.
+- **OriginKeep 2.0 — Universal File Passport:** portable passports, context, multi-location identity, Trust Lens, Origin Graph, Firefox, macOS/Linux packaging, Safari fallback and existing-file adoption.
 
 ## Documentation
 
-- [`docs/PHASE1.md`](docs/PHASE1.md) — provenance foundation and development smoke test.
-- [`docs/PHASE2.md`](docs/PHASE2.md) — source identity, duplicates, versioning and migration.
-- [`docs/PHASE3.md`](docs/PHASE3.md) — remote evidence and local comparison rules.
-- [`docs/PHASE4.md`](docs/PHASE4.md) — lifecycle invariants, retention and recovery.
+- [`docs/PASSPORT_SPEC.md`](docs/PASSPORT_SPEC.md) — portable passport contract.
+- [`docs/ORIGINKEEP_2.md`](docs/ORIGINKEEP_2.md) — 2.0 capabilities and platform matrix.
+- [`docs/SAFARI.md`](docs/SAFARI.md) — Safari packaging/fallback model.
+- [`docs/PHASE1.md`](docs/PHASE1.md) through [`docs/PHASE4.md`](docs/PHASE4.md) — original implementation phases.
 - [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md) — trust boundaries and residual risks.
-- [`docs/RELEASE.md`](docs/RELEASE.md) — clean Windows release-candidate checklist.
+- [`docs/RELEASE.md`](docs/RELEASE.md) — release validation.
 - [`PRIVACY.md`](PRIVACY.md) — local-first data handling.
-- [`SECURITY.md`](SECURITY.md) — vulnerability reporting and supported security boundaries.
+- [`SECURITY.md`](SECURITY.md) — vulnerability reporting.
 
-## Deferred after v0.1
+## Deliberate non-goals
 
-Scheduled freshness checks, notifications, authenticated source sessions, cloud sync, automatic re-download, bulk destructive cleanup and AI-driven cleanup decisions are deliberately outside the v0.1 release scope.
+Scheduled/background source checks, cloud sync, cookie/session replay, antivirus verdicts, AI cleanup decisions, automatic destructive deletion and a download-speed engine remain outside the core product.
 
 ## License
 
