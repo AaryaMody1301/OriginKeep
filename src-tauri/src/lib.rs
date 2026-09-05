@@ -2,6 +2,7 @@ mod model;
 pub mod native_host;
 mod phase3;
 mod phase4;
+mod secure_remote;
 mod storage;
 
 use model::{DownloadRecord, VerificationSummary};
@@ -36,7 +37,7 @@ fn check_remote_freshness(
     state: tauri::State<'_, AppState>,
     download_id: i64,
 ) -> Result<RemoteEvidence, String> {
-    phase3::check_remote_freshness(&state.database_path, download_id)
+    secure_remote::check_remote_freshness(&state.database_path, download_id)
 }
 
 #[tauri::command]
