@@ -13,8 +13,8 @@
     "windows": [
       {
         "title": "OriginKeep",
-        "width": 1120,
-        "height": 760,
+        "width": 1180,
+        "height": 800,
         "minWidth": 760,
         "minHeight": 560
       }
@@ -25,13 +25,14 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["nsis"],
+    "targets": "all",
     "externalBin": ["binaries/originkeep-native-host"],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
       "icons/128x128@2x.png",
-      "icons/icon.ico"
+      "icons/icon.ico",
+      "icons/icon.icns"
     ],
     "windows": {
       "nsis": {
