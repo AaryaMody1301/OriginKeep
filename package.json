@@ -10,6 +10,7 @@
     "tauri": "tauri",
     "icons": "tauri icon src-tauri/icons/icon.png",
     "prepare:sidecar": "node scripts/prepare-sidecar.mjs",
+    "stage:companions": "node scripts/stage-browser-companions.mjs",
     "bundle:windows": "npm run icons && tauri build --bundles nsis",
     "bundle:macos": "npm run icons && tauri build --config src-tauri/tauri.macos.conf.json",
     "bundle:linux": "npm run icons && tauri build --config src-tauri/tauri.linux.conf.json",
