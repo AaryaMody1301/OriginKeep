@@ -1,0 +1,36 @@
+name: Apply OriginKeep 2 rustfmt
+
+on:
+  push:
+    branches: [originkeep-2-universal-passport]
+    paths:
+      - "src-tauri/**/*.rs"
+      - ".github/workflows/rustfmt-originkeep2.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  rustfmt:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: originkeep-2-universal-passport
+      - name: Install Rust stable with rustfmt
+        run: rustup toolchain install stable --profile minimal --component rustfmt
+      - name: Apply rustfmt
+        run: cargo +stable fmt --manifest-path src-tauri/Cargo.toml
+      - name: Commit exact formatter output
+        run: |
+          git diff --check
+          if git diff --quiet; then
+            echo "No rustfmt changes needed"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src-tauri
+          git commit -m "Apply rustfmt to OriginKeep 2.0"
+          git push origin HEAD:originkeep-2-universal-passport
