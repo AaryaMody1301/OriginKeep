@@ -1,0 +1,13 @@
+{
+  "manifest_version": 3,
+  "name": "OriginKeep Companion",
+  "version": "0.1.0",
+  "description": "Captures browser download provenance for the local OriginKeep desktop app.",
+  "permissions": ["downloads", "nativeMessaging"],
+  "background": {
+    "service_worker": "service-worker.js"
+  },
+  "action": {
+    "default_title": "OriginKeep Companion"
+  }
+}
