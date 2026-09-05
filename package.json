@@ -10,7 +10,10 @@
     "tauri": "tauri",
     "icons": "tauri icon src-tauri/icons/icon.png",
     "prepare:sidecar": "node scripts/prepare-sidecar.mjs",
-    "bundle:windows": "npm run icons && tauri build --bundles nsis"
+    "prepare:browsers": "node scripts/prepare-browser-packages.mjs",
+    "bundle:windows": "npm run icons && tauri build --bundles nsis",
+    "bundle:linux": "npm run icons && tauri build --bundles appimage,deb",
+    "bundle:macos": "npm run icons && tauri build --bundles app,dmg"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.8.0",
