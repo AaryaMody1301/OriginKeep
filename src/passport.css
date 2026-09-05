@@ -1,0 +1,67 @@
+.v2-shell { max-width: 1500px; margin: 0 auto; padding: 28px; display: grid; gap: 20px; }
+.v2-hero { display: flex; justify-content: space-between; gap: 28px; align-items: flex-start; padding: 28px; border: 1px solid #d8d8d8; border-radius: 18px; background: #fff; }
+.v2-hero h1 { margin: 4px 0 8px; font-size: clamp(2rem, 5vw, 3.7rem); letter-spacing: -0.05em; }
+.v2-hero p { max-width: 760px; margin: 0; color: #555; }
+.v2-eyebrow { margin: 0 !important; text-transform: uppercase; letter-spacing: 0.12em; font-size: 0.72rem; font-weight: 700; color: #666; }
+.v2-hero-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.v2-shell button { border: 1px solid #111; background: #111; color: #fff; border-radius: 9px; padding: 9px 13px; font: inherit; cursor: pointer; }
+.v2-shell button:disabled { cursor: not-allowed; opacity: 0.5; }
+.v2-shell .v2-secondary { background: #fff; color: #111; border-color: #bbb; }
+.v2-metrics { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
+.v2-metrics > div { border: 1px solid #ddd; background: #fff; border-radius: 14px; padding: 16px; display: grid; gap: 4px; }
+.v2-metrics strong { font-size: 1.35rem; }
+.v2-metrics span { color: #666; font-size: 0.85rem; }
+.v2-toolbar { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 10px; }
+.v2-search, .v2-import, .v2-inline-form { display: flex; gap: 8px; }
+.v2-shell input, .v2-shell select, .v2-shell textarea { box-sizing: border-box; width: 100%; border: 1px solid #c8c8c8; border-radius: 9px; padding: 9px 11px; font: inherit; background: #fff; color: #111; }
+.v2-shell textarea { resize: vertical; }
+.v2-notice, .v2-error { margin: 0; padding: 11px 14px; border-radius: 10px; border: 1px solid #ccc; background: #fff; }
+.v2-error { border-color: #c77777; }
+.v2-layout { display: grid; grid-template-columns: minmax(300px, 0.78fr) minmax(0, 1.75fr); gap: 18px; align-items: start; }
+.v2-library, .v2-passport, .v2-review, .v2-graph { border: 1px solid #ddd; background: #fff; border-radius: 16px; padding: 18px; }
+.v2-section-heading, .v2-passport-title, .v2-file-title { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.v2-section-heading h2, .v2-section-heading h3, .v2-passport-title h2 { margin: 4px 0 0; }
+.v2-file-list { display: grid; gap: 8px; margin-top: 14px; max-height: 980px; overflow: auto; padding-right: 3px; }
+.v2-shell .v2-file-card { display: grid; gap: 8px; text-align: left; background: #fff; color: #111; border-color: #ddd; padding: 13px; }
+.v2-shell .v2-file-card:hover, .v2-shell .v2-file-card.selected { border-color: #111; box-shadow: inset 3px 0 0 #111; }
+.v2-file-card p, .v2-file-card small { margin: 0; overflow-wrap: anywhere; color: #666; }
+.v2-file-title span { border: 1px solid #ddd; border-radius: 999px; padding: 2px 7px; font-size: 0.73rem; white-space: nowrap; }
+.v2-badges { display: flex; gap: 5px; flex-wrap: wrap; }
+.v2-badges span, .v2-state { border: 1px solid #ddd; border-radius: 999px; padding: 2px 7px; font-size: 0.7rem; background: #fafafa; }
+.v2-empty-card { min-height: 400px; display: grid; place-content: center; text-align: center; color: #666; }
+.v2-passport-title { border-bottom: 1px solid #e6e6e6; padding-bottom: 14px; margin-bottom: 14px; }
+.v2-passport-title p { margin: 5px 0 0; color: #666; }
+.v2-passport-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.v2-passport-grid article, .v2-panel { border: 1px solid #e1e1e1; border-radius: 12px; padding: 14px; background: #fff; }
+.v2-passport-grid h3, .v2-panel h3 { margin: 0 0 10px; }
+.v2-passport dl { margin: 0; display: grid; grid-template-columns: 115px minmax(0, 1fr); gap: 7px 10px; }
+.v2-passport dt { color: #777; font-size: 0.8rem; }
+.v2-passport dd { margin: 0; overflow-wrap: anywhere; font-size: 0.88rem; }
+.v2-mono { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; word-break: break-all; }
+.v2-panel { margin-top: 10px; }
+.v2-evidence-row { display: grid; grid-template-columns: 100px minmax(0, 1fr); gap: 10px; padding: 7px 0; border-top: 1px solid #eee; overflow-wrap: anywhere; }
+.v2-evidence-row:first-of-type { border-top: 0; }
+.v2-inline-form { margin-top: 12px; }
+.v2-panel small { color: #666; }
+.v2-trust-row { border-top: 1px solid #eee; padding: 10px 0; }
+.v2-trust-row:first-of-type { border-top: 0; }
+.v2-trust-row > div { display: flex; gap: 8px; align-items: center; }
+.v2-trust-row p { margin: 5px 0; }
+.v2-edit { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.v2-edit .v2-section-heading, .v2-edit .v2-wide { grid-column: 1 / -1; }
+.v2-edit label { display: grid; gap: 5px; font-size: 0.82rem; color: #555; }
+.v2-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.v2-review-controls { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+.v2-review-controls label { display: flex; gap: 6px; align-items: center; font-size: 0.82rem; }
+.v2-review-controls select { width: auto; }
+.v2-review-controls input[type='checkbox'] { width: auto; }
+.v2-review-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; margin-top: 14px; }
+.v2-review-grid article { border: 1px solid #e1e1e1; border-radius: 10px; padding: 12px; display: grid; gap: 7px; }
+.v2-review-grid p, .v2-review-grid small { margin: 0; color: #666; }
+.v2-graph-list { display: grid; gap: 5px; margin-top: 12px; max-height: 460px; overflow: auto; }
+.v2-graph-list > div { display: grid; grid-template-columns: minmax(0, 1fr) 130px minmax(0, 1fr); gap: 9px; align-items: center; padding: 7px 9px; border: 1px solid #eee; border-radius: 8px; }
+.v2-graph-list strong { text-align: center; font-size: 0.72rem; color: #555; }
+.v2-graph-list span { overflow-wrap: anywhere; }
+.v2-empty { color: #777; }
+@media (max-width: 1050px) { .v2-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } .v2-toolbar, .v2-layout { grid-template-columns: 1fr; } .v2-file-list { max-height: 520px; } }
+@media (max-width: 720px) { .v2-shell { padding: 12px; } .v2-hero { flex-direction: column; padding: 18px; } .v2-hero-actions { justify-content: flex-start; } .v2-metrics, .v2-passport-grid, .v2-edit, .v2-review-grid { grid-template-columns: 1fr; } .v2-edit .v2-section-heading, .v2-edit .v2-wide { grid-column: auto; } .v2-search, .v2-import, .v2-inline-form { flex-direction: column; } .v2-passport dl { grid-template-columns: 1fr; } .v2-graph-list > div { grid-template-columns: 1fr; } .v2-graph-list strong { text-align: left; } }
