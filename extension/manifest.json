@@ -1,15 +1,17 @@
 {
   "manifest_version": 3,
   "name": "OriginKeep Companion",
-  "version": "0.1.0",
-  "description": "Captures browser download provenance for the local OriginKeep desktop app.",
+  "version": "0.2.0",
+  "description": "Captures browser download provenance and optional page context for the local OriginKeep desktop app.",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAlTIvcFT9cq2B91h6FAbrbypjAhOc3ol89I2a/oTZATwI6veILB3h6wG7E2oqCNLVB7czau2Tmgu8Gqo6a7rdb0IL0fF/9ccXGMIdszeW8ZW2cnK1XyM7Tm8sbSDNNF8H2tS/dlR0pHPC6gMdThD22uef9YgAAmEGE2KUfKO5kwD6Upfs7BC79F6ScWjUfdzwI8f+Lu3b5FoGjAsJp/9x7uaDQgRJleXp1oH43iCGIqafAxzCFcGK54QyMBRXFp7Rz3x8Y3Xy9dBql6ETRIFJM7Ihq/5rjA+6FIkBx6pixj+KtXxh5UV3pu3dU8hgj5oUfTy6ELPoVAp+/Ms1WIfpZwIDAQAB",
-  "permissions": ["downloads", "nativeMessaging"],
+  "permissions": ["downloads", "nativeMessaging", "tabs", "storage", "scripting"],
+  "optional_host_permissions": ["http://*/*", "https://*/*"],
   "background": {
     "service_worker": "service-worker.js"
   },
   "action": {
     "default_title": "OriginKeep Companion",
+    "default_popup": "popup.html",
     "default_icon": "icon.png"
   },
   "icons": {
