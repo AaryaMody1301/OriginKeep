@@ -15,6 +15,16 @@ pub struct DownloadCapture {
     pub started_at: Option<String>,
     pub completed_at: Option<String>,
     pub state: String,
+    #[serde(default)]
+    pub page_title: Option<String>,
+    #[serde(default)]
+    pub page_url: Option<String>,
+    #[serde(default)]
+    pub link_text: Option<String>,
+    #[serde(default)]
+    pub context_text: Option<String>,
+    #[serde(default)]
+    pub browser_name: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -37,6 +47,15 @@ pub struct DownloadRecord {
     pub version_number: Option<i64>,
     pub duplicate_of_id: Option<i64>,
     pub local_state: String,
+    pub page_title: Option<String>,
+    pub page_url: Option<String>,
+    pub link_text: Option<String>,
+    pub context_text: Option<String>,
+    pub browser_name: Option<String>,
+    pub user_note: Option<String>,
+    pub purpose: Option<String>,
+    pub expires_at: Option<String>,
+    pub retention_action: String,
     pub updated_at: String,
 }
 
