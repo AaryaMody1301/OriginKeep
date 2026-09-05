@@ -1,0 +1,54 @@
+.passport-center {
+  width: min(1180px, calc(100% - 40px));
+  margin: 32px auto 0;
+  padding: 28px;
+  border: 1px solid #26354b;
+  border-radius: 22px;
+  background: linear-gradient(180deg, rgba(18, 31, 52, .96), rgba(8, 15, 26, .96));
+  box-shadow: 0 22px 80px rgba(0, 0, 0, .24);
+}
+.passport-hero { display: flex; justify-content: space-between; gap: 24px; align-items: flex-start; }
+.passport-hero h1 { font-size: clamp(34px, 5vw, 58px); }
+.passport-hero > div > p:last-child { max-width: 760px; color: #94a3b8; line-height: 1.6; }
+.passport-stats { display: grid; grid-template-columns: auto auto; gap: 4px 12px; min-width: 150px; }
+.passport-stats strong { font-size: 30px; color: #dbeafe; text-align: right; }
+.passport-stats span { align-self: end; padding-bottom: 5px; color: #64748b; font-size: 12px; text-transform: uppercase; letter-spacing: .08em; }
+.passport-tools { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto; gap: 10px; align-items: end; margin-top: 22px; }
+.passport-tools label, .passport-intent label { display: grid; gap: 6px; color: #94a3b8; font-size: 12px; font-weight: 700; }
+.passport-grid { display: grid; gap: 16px; margin-top: 24px; }
+.passport-card, .trust-lens, .origin-graph { border: 1px solid #243047; border-radius: 16px; background: rgba(8, 14, 24, .82); }
+.passport-card { padding: 20px; }
+.passport-card header { display: flex; justify-content: space-between; gap: 16px; }
+.passport-card h2 { margin: 0; font-size: 19px; }
+.passport-evidence-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 18px; }
+.passport-evidence-grid > div { display: grid; gap: 5px; min-width: 0; padding: 12px; border: 1px solid #1e293b; border-radius: 12px; background: rgba(15, 23, 42, .55); }
+.passport-evidence-grid strong { color: #64748b; font-size: 10px; letter-spacing: .08em; text-transform: uppercase; }
+.passport-evidence-grid span { color: #cbd5e1; font-size: 12px; overflow-wrap: anywhere; }
+.passport-card details { margin-top: 14px; border-top: 1px solid #1e293b; padding-top: 12px; }
+.passport-card summary, .origin-graph summary { cursor: pointer; color: #93c5fd; font-weight: 700; }
+.passport-card details p { color: #94a3b8; font-size: 13px; line-height: 1.5; }
+.passport-intent { display: grid; grid-template-columns: 1fr 1fr 1.4fr; gap: 10px; margin-top: 16px; }
+.passport-intent textarea { width: 100%; min-height: 74px; resize: vertical; border: 1px solid #334155; border-radius: 10px; background: #0f172a; color: #f8fafc; padding: 11px 12px; font: inherit; }
+.passport-note { grid-column: 1 / -1; }
+.passport-actions { border-top: 1px solid #1e293b; padding-top: 14px; }
+.relink-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; margin-top: 14px; }
+.passport-locations { color: #94a3b8; display: grid; gap: 6px; padding-left: 18px; font-size: 12px; overflow-wrap: anywhere; }
+.trust-lens { padding: 20px; margin-top: 24px; }
+.trust-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 18px; }
+.trust-grid article { padding: 15px; border: 1px solid #1e293b; border-radius: 12px; background: rgba(15, 23, 42, .48); }
+.trust-grid p { color: #94a3b8; line-height: 1.5; font-size: 13px; }
+.trust-grid ul { color: #64748b; padding-left: 18px; font-size: 11px; overflow-wrap: anywhere; }
+.origin-graph { margin-top: 24px; padding: 18px; }
+.graph-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 16px; }
+.graph-columns h3 { margin-top: 0; }
+.graph-columns p { border-top: 1px solid #1e293b; padding-top: 8px; color: #94a3b8; font-size: 11px; overflow-wrap: anywhere; }
+@media (max-width: 900px) {
+  .passport-tools, .passport-evidence-grid, .passport-intent { grid-template-columns: 1fr 1fr; }
+  .passport-note { grid-column: 1 / -1; }
+}
+@media (max-width: 680px) {
+  .passport-center { width: min(100% - 24px, 1180px); padding: 18px; }
+  .passport-hero, .passport-card header { flex-direction: column; }
+  .passport-tools, .passport-evidence-grid, .passport-intent, .trust-grid, .graph-columns, .relink-row { grid-template-columns: 1fr; }
+  .passport-note { grid-column: auto; }
+}
