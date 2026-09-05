@@ -1,0 +1,38 @@
+name: Generate lockfiles
+
+on:
+  pull_request:
+    paths:
+      - package.json
+      - src-tauri/Cargo.toml
+      - .github/workflows/generate-lockfiles.yml
+
+permissions:
+  contents: read
+
+jobs:
+  lockfiles:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22
+      - name: Generate npm lockfile
+        run: npm install --package-lock-only --ignore-scripts
+      - name: Install Rust stable
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+      - name: Generate Cargo lockfile
+        run: cargo generate-lockfile --manifest-path src-tauri/Cargo.toml
+      - name: Stage lockfiles
+        run: |
+          mkdir generated-lockfiles
+          cp package-lock.json generated-lockfiles/package-lock.json
+          cp src-tauri/Cargo.lock generated-lockfiles/Cargo.lock
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: generated-lockfiles
+          path: generated-lockfiles/*
+          if-no-files-found: error
