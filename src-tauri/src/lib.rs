@@ -18,9 +18,7 @@ fn list_downloads(
 }
 
 #[tauri::command]
-fn verify_local_files(
-    state: tauri::State<'_, AppState>,
-) -> Result<VerificationSummary, String> {
+fn verify_local_files(state: tauri::State<'_, AppState>) -> Result<VerificationSummary, String> {
     storage::verify_local_files(&state.database_path)
 }
 
