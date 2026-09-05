@@ -7,6 +7,7 @@ import PassportCenter from "./PassportCenter";
 import "./styles.css";
 import "./passport.css";
 import "./adopt.css";
+import "./browser-setup.css";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
