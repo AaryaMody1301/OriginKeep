@@ -1,6 +1,9 @@
 use serde::Serialize;
 use serde_json::json;
-use std::{env, fs, path::{Path, PathBuf}};
+use std::{
+    env, fs,
+    path::{Path, PathBuf},
+};
 
 const HOST_NAME: &str = "com.originkeep.host";
 const CHROMIUM_EXTENSION_ID: &str = "mplmkmbnahpggimgfihfgieamonbbobh";
@@ -95,7 +98,10 @@ fn install_unix_browser_integration() -> Result<BrowserSetupResult, String> {
     for directory in chromium_manifest_directories(&home) {
         manifests_written.push(write_manifest(&directory, &chromium)?);
     }
-    manifests_written.push(write_manifest(&firefox_manifest_directory(&home), &firefox)?);
+    manifests_written.push(write_manifest(
+        &firefox_manifest_directory(&home),
+        &firefox,
+    )?);
 
     Ok(BrowserSetupResult {
         platform: env::consts::OS.into(),

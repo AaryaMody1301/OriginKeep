@@ -148,9 +148,7 @@ fn reconnect_file(
 }
 
 #[tauri::command]
-fn refresh_locations(
-    state: tauri::State<'_, AppState>,
-) -> Result<LocationRefreshSummary, String> {
+fn refresh_locations(state: tauri::State<'_, AppState>) -> Result<LocationRefreshSummary, String> {
     passport::refresh_locations(&state.database_path)
 }
 

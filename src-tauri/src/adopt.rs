@@ -3,12 +3,12 @@ use crate::{
     passport::{self, CaptureContext, FilePassport},
     pending_context, storage,
 };
+#[cfg(target_os = "macos")]
+use std::process::Command;
 use std::{
     fs,
     path::{Path, PathBuf},
 };
-#[cfg(target_os = "macos")]
-use std::process::Command;
 
 pub fn adopt_existing_file(
     database: &Path,
@@ -57,7 +57,9 @@ pub fn adopt_existing_file(
     };
     let result = storage::ingest_capture(database, &capture)?;
 
-    let pending_context_text = pending.as_ref().and_then(|value| value.context_text.clone());
+    let pending_context_text = pending
+        .as_ref()
+        .and_then(|value| value.context_text.clone());
     let context_text = match (pending_context_text, evidence.summary.clone()) {
         (Some(context), Some(summary)) => Some(format!("{context}\n\n{summary}")),
         (Some(context), None) => Some(context),
@@ -190,9 +192,8 @@ mod tests {
     #[cfg(target_os = "macos")]
     #[test]
     fn parses_macos_where_froms_output_without_guessing() {
-        let values = quoted_strings(
-            "(\n  \"https://example.com/file\",\n  \"https://example.com/page\"\n)",
-        );
+        let values =
+            quoted_strings("(\n  \"https://example.com/file\",\n  \"https://example.com/page\"\n)");
         assert_eq!(values.len(), 2);
     }
 }

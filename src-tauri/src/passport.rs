@@ -621,7 +621,10 @@ pub fn reconnect_file(
     initialize_database(path)?;
     let candidate = PathBuf::from(new_path.trim());
     if !candidate.is_file() {
-        return Err(format!("Selected path is not a readable file: {}", candidate.display()));
+        return Err(format!(
+            "Selected path is not a readable file: {}",
+            candidate.display()
+        ));
     }
     let actual_hash = storage::sha256_file(&candidate).map_err(|error| error.to_string())?;
     let mut connection = Connection::open(path).map_err(|error| error.to_string())?;
@@ -638,7 +641,9 @@ pub fn reconnect_file(
         "This record has no immutable SHA-256 baseline, so OriginKeep will not reconnect it by guesswork".to_string()
     })?;
     if actual_hash != expected_hash {
-        return Err("The selected file does not match the recorded SHA-256 content identity".into());
+        return Err(
+            "The selected file does not match the recorded SHA-256 content identity".into(),
+        );
     }
     let candidate_text = candidate.display().to_string();
     upsert_location(&connection, &expected_hash, &candidate_text, "PRESENT")
@@ -690,7 +695,9 @@ pub fn refresh_locations(path: &Path) -> Result<LocationRefreshSummary, String> 
             .prepare("SELECT id, path FROM file_locations ORDER BY id ASC")
             .map_err(|error| error.to_string())?;
         let rows = statement
-            .query_map([], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?)))
+            .query_map([], |row| {
+                Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))
+            })
             .map_err(|error| error.to_string())?
             .collect::<rusqlite::Result<Vec<_>>>()
             .map_err(|error| error.to_string())?;
@@ -742,10 +749,9 @@ fn usable_file_path(passport: &FilePassport) -> Option<PathBuf> {
 pub fn export_passport(path: &Path, download_id: i64) -> Result<PassportExportResult, String> {
     refresh_trust(path, download_id)?;
     let passport = get_file_passport(path, download_id)?;
-    let hash = passport
-        .sha256
-        .clone()
-        .ok_or_else(|| "A portable passport requires an immutable SHA-256 fingerprint".to_string())?;
+    let hash = passport.sha256.clone().ok_or_else(|| {
+        "A portable passport requires an immutable SHA-256 fingerprint".to_string()
+    })?;
     let source_path = usable_file_path(&passport)
         .ok_or_else(|| "No local or archived copy is available for passport export".to_string())?;
     let portable = PortablePassport {
@@ -790,7 +796,8 @@ pub fn import_passport(path: &Path, sidecar_path: String) -> Result<FilePassport
         return Err("OriginKeep passport sidecars are limited to 1 MiB".into());
     }
     let raw = fs::read_to_string(&sidecar).map_err(|error| error.to_string())?;
-    let portable: PortablePassport = serde_json::from_str(&raw).map_err(|error| error.to_string())?;
+    let portable: PortablePassport =
+        serde_json::from_str(&raw).map_err(|error| error.to_string())?;
     if portable.spec != PASSPORT_SPEC {
         return Err(format!("Unsupported passport spec: {}", portable.spec));
     }
@@ -800,7 +807,10 @@ pub fn import_passport(path: &Path, sidecar_path: String) -> Result<FilePassport
         .ok_or_else(|| "Passport filename must end in .originkeep.json".to_string())?;
     let file_path = PathBuf::from(file_text);
     if !file_path.is_file() {
-        return Err(format!("Passport file is not beside the sidecar: {}", file_path.display()));
+        return Err(format!(
+            "Passport file is not beside the sidecar: {}",
+            file_path.display()
+        ));
     }
     let actual_hash = storage::sha256_file(&file_path).map_err(|error| error.to_string())?;
     if actual_hash != portable.sha256 {
@@ -853,7 +863,12 @@ pub fn import_passport(path: &Path, sidecar_path: String) -> Result<FilePassport
     get_file_passport(path, result.id)
 }
 
-fn observation(kind: &str, state: &str, summary: String, details: Option<String>) -> TrustObservation {
+fn observation(
+    kind: &str,
+    state: &str,
+    summary: String,
+    details: Option<String>,
+) -> TrustObservation {
     TrustObservation {
         kind: kind.into(),
         state: state.into(),
@@ -958,8 +973,14 @@ fn authenticode_observation(path: &Path) -> TrustObservation {
         Ok(output) if output.status.success() => {
             let raw = String::from_utf8_lossy(&output.stdout);
             let value: Value = serde_json::from_str(raw.trim()).unwrap_or(Value::Null);
-            let status = value.get("Status").and_then(Value::as_str).unwrap_or("Unknown");
-            let signer = value.get("Signer").and_then(Value::as_str).map(ToOwned::to_owned);
+            let status = value
+                .get("Status")
+                .and_then(Value::as_str)
+                .unwrap_or("Unknown");
+            let signer = value
+                .get("Signer")
+                .and_then(Value::as_str)
+                .map(ToOwned::to_owned);
             match status {
                 "Valid" => observation(
                     "AUTHENTICODE",
@@ -1017,7 +1038,8 @@ fn c2pa_observation(path: &Path) -> TrustObservation {
             return observation(
                 "C2PA",
                 "VERIFIER_UNAVAILABLE",
-                "Install the official c2patool executable to validate Content Credentials locally.".into(),
+                "Install the official c2patool executable to validate Content Credentials locally."
+                    .into(),
                 None,
             );
         }
@@ -1041,7 +1063,10 @@ fn c2pa_observation(path: &Path) -> TrustObservation {
         );
     }
     let lower = stdout.to_ascii_lowercase();
-    if lower.contains("no manifest") || lower.contains("no c2pa") || lower.contains("manifest: none") {
+    if lower.contains("no manifest")
+        || lower.contains("no c2pa")
+        || lower.contains("manifest: none")
+    {
         return observation(
             "C2PA",
             "NOT_PRESENT",
@@ -1167,7 +1192,13 @@ pub fn refresh_trust(path: &Path, download_id: i64) -> Result<Vec<TrustObservati
                     details = excluded.details,
                     checked_at = CURRENT_TIMESTAMP
                 "#,
-                params![download_id, item.kind, item.state, item.summary, item.details],
+                params![
+                    download_id,
+                    item.kind,
+                    item.state,
+                    item.summary,
+                    item.details
+                ],
             )
             .map_err(|error| error.to_string())?;
     }

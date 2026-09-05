@@ -104,7 +104,9 @@ mod tests {
         }
         let connection = Connection::open(&path).unwrap();
         let count: i64 = connection
-            .query_row("SELECT COUNT(*) FROM pending_browser_context", [], |row| row.get(0))
+            .query_row("SELECT COUNT(*) FROM pending_browser_context", [], |row| {
+                row.get(0)
+            })
             .unwrap();
         fs::remove_file(&path).ok();
         assert_eq!(count, 20);
