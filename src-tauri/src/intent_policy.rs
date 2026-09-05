@@ -24,13 +24,7 @@ pub fn apply(path: &Path, review: &mut LifecycleReview) -> Result<(), String> {
                 FROM downloads d WHERE d.id = ?1
                 "#,
                 [item.download_id],
-                |row| {
-                    Ok((
-                        row.get(0)?,
-                        row.get::<_, i64>(1)? != 0,
-                        row.get(2)?,
-                    ))
-                },
+                |row| Ok((row.get(0)?, row.get::<_, i64>(1)? != 0, row.get(2)?)),
             )
             .optional()
             .map_err(|error| error.to_string())?
@@ -47,9 +41,7 @@ pub fn apply(path: &Path, review: &mut LifecycleReview) -> Result<(), String> {
                 item.recommendation = "ARCHIVE_CANDIDATE".into();
                 item.reason = "This File Passport is past its user-defined expiry and the local bytes still satisfy safe-archive requirements.".into();
             }
-            "ARCHIVE_WHEN_SUPERSEDED"
-                if item.status == "SUPERSEDED" && item.archive_eligible =>
-            {
+            "ARCHIVE_WHEN_SUPERSEDED" if item.status == "SUPERSEDED" && item.archive_eligible => {
                 item.reclaimable = true;
                 item.recommendation = "ARCHIVE_CANDIDATE".into();
                 item.reason = "This File Passport explicitly allows safe archival after a deterministic newer version supersedes it.".into();
@@ -83,7 +75,10 @@ mod tests {
     use super::*;
     use crate::phase4::{LifecycleItem, LifecycleSummary};
     use rusqlite::params;
-    use std::{env, fs, time::{SystemTime, UNIX_EPOCH}};
+    use std::{
+        env, fs,
+        time::{SystemTime, UNIX_EPOCH},
+    };
 
     fn temp_db() -> std::path::PathBuf {
         let unique = SystemTime::now()

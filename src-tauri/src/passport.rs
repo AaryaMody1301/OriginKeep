@@ -297,7 +297,10 @@ fn load_passport(connection: &Connection, download_id: i64) -> rusqlite::Result<
     Ok(record)
 }
 
-fn load_locations(connection: &Connection, download_id: i64) -> rusqlite::Result<Vec<FileLocation>> {
+fn load_locations(
+    connection: &Connection,
+    download_id: i64,
+) -> rusqlite::Result<Vec<FileLocation>> {
     let mut statement = connection.prepare(
         "SELECT path, is_current, first_seen, last_seen FROM file_locations WHERE download_id = ?1 ORDER BY is_current DESC, last_seen DESC, id DESC",
     )?;
@@ -380,7 +383,9 @@ pub fn export_passport(path: &Path, download_id: i64) -> Result<PassportExport, 
         .ok_or_else(|| "A portable passport requires a recorded SHA-256 fingerprint".to_string())?;
     let local_path = PathBuf::from(&record.local_path);
     if !local_path.is_file() {
-        return Err("Restore or relink the local file before exporting its portable passport".into());
+        return Err(
+            "Restore or relink the local file before exporting its portable passport".into(),
+        );
     }
     let current = storage::sha256_file(&local_path)
         .map_err(|error| format!("Could not fingerprint {}: {error}", local_path.display()))?;
@@ -388,20 +393,16 @@ pub fn export_passport(path: &Path, download_id: i64) -> Result<PassportExport, 
         return Err("Portable passport export is blocked because local bytes no longer match the recorded fingerprint".into());
     }
 
-    let duplicate_of_sha256 = record
-        .duplicate_of_id
-        .and_then(|id| {
-            connection
-                .query_row(
-                    "SELECT sha256 FROM downloads WHERE id = ?1",
-                    [id],
-                    |row| row.get::<_, Option<String>>(0),
-                )
-                .optional()
-                .ok()
-                .flatten()
-                .flatten()
-        });
+    let duplicate_of_sha256 = record.duplicate_of_id.and_then(|id| {
+        connection
+            .query_row("SELECT sha256 FROM downloads WHERE id = ?1", [id], |row| {
+                row.get::<_, Option<String>>(0)
+            })
+            .optional()
+            .ok()
+            .flatten()
+            .flatten()
+    });
     let exported_at: String = connection
         .query_row("SELECT CURRENT_TIMESTAMP", [], |row| row.get(0))
         .map_err(|error| error.to_string())?;
@@ -518,7 +519,9 @@ pub fn import_passport(
     let passport_path = PathBuf::from(passport_path);
     let file_path = PathBuf::from(file_path);
     if !passport_path.is_file() || !file_path.is_file() {
-        return Err("Passport import requires both an existing Passport JSON and local file".into());
+        return Err(
+            "Passport import requires both an existing Passport JSON and local file".into(),
+        );
     }
     let portable: PortablePassport = serde_json::from_slice(
         &fs::read(&passport_path)
@@ -535,7 +538,9 @@ pub fn import_passport(
     let actual = storage::sha256_file(&file_path)
         .map_err(|error| format!("Could not fingerprint {}: {error}", file_path.display()))?;
     if actual != portable.file.sha256 {
-        return Err("The selected file does not match the SHA-256 recorded by this passport".into());
+        return Err(
+            "The selected file does not match the SHA-256 recorded by this passport".into(),
+        );
     }
     let metadata = fs::metadata(&file_path).map_err(|error| error.to_string())?;
     let capture = DownloadCapture {
@@ -587,7 +592,10 @@ pub fn relink_download(
     initialize_database(path)?;
     let candidate = PathBuf::from(candidate_path);
     if !candidate.is_file() {
-        return Err(format!("Candidate path is not a file: {}", candidate.display()));
+        return Err(format!(
+            "Candidate path is not a file: {}",
+            candidate.display()
+        ));
     }
     let connection = Connection::open(path).map_err(|error| error.to_string())?;
     let (expected, old_path, lifecycle_state): (Option<String>, String, String) = connection
@@ -604,8 +612,8 @@ pub fn relink_download(
     if lifecycle_state == "ARCHIVED" {
         return Err("Restore the archived copy before relinking this record".into());
     }
-    let expected = expected
-        .ok_or_else(|| "Relinking requires a recorded SHA-256 fingerprint".to_string())?;
+    let expected =
+        expected.ok_or_else(|| "Relinking requires a recorded SHA-256 fingerprint".to_string())?;
     let current = storage::sha256_file(&candidate)
         .map_err(|error| format!("Could not fingerprint {}: {error}", candidate.display()))?;
     if current != expected {
@@ -624,7 +632,12 @@ pub fn relink_download(
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = ?4
             "#,
-            params![candidate.display().to_string(), name, metadata.len() as i64, download_id],
+            params![
+                candidate.display().to_string(),
+                name,
+                metadata.len() as i64,
+                download_id
+            ],
         )
         .map_err(|error| error.to_string())?;
     connection
@@ -647,7 +660,10 @@ pub fn find_moved_file(
     initialize_database(path)?;
     let root = PathBuf::from(search_root);
     if !root.is_dir() {
-        return Err(format!("Search root is not a directory: {}", root.display()));
+        return Err(format!(
+            "Search root is not a directory: {}",
+            root.display()
+        ));
     }
     let connection = Connection::open(path).map_err(|error| error.to_string())?;
     let (expected, expected_bytes): (Option<String>, Option<i64>) = connection
@@ -657,8 +673,9 @@ pub fn find_moved_file(
             |row| Ok((row.get(0)?, row.get(1)?)),
         )
         .map_err(|error| error.to_string())?;
-    let expected = expected
-        .ok_or_else(|| "Moved-file discovery requires a recorded SHA-256 fingerprint".to_string())?;
+    let expected = expected.ok_or_else(|| {
+        "Moved-file discovery requires a recorded SHA-256 fingerprint".to_string()
+    })?;
     let mut scanned = 0usize;
     let found = scan_directory_for_hash(
         &root,
@@ -718,13 +735,9 @@ fn scan_directory_for_hash(
             continue;
         }
         if file_type.is_dir() {
-            if let Some(found) = scan_directory_for_hash(
-                &path,
-                expected_hash,
-                expected_bytes,
-                depth + 1,
-                scanned,
-            )? {
+            if let Some(found) =
+                scan_directory_for_hash(&path, expected_hash, expected_bytes, depth + 1, scanned)?
+            {
                 return Ok(Some(found));
             }
             continue;
@@ -813,8 +826,20 @@ pub fn origin_graph(path: &Path) -> Result<OriginGraph, String> {
     let mut source_ids = BTreeMap::<String, String>::new();
     let mut last_version_by_source = BTreeMap::<String, (i64, String)>::new();
 
-    for (id, file_name, original_url, source_identity, version_number, duplicate_of_id, sha256, purpose) in records {
-        let source_value = source_identity.clone().unwrap_or_else(|| original_url.clone());
+    for (
+        id,
+        file_name,
+        original_url,
+        source_identity,
+        version_number,
+        duplicate_of_id,
+        sha256,
+        purpose,
+    ) in records
+    {
+        let source_value = source_identity
+            .clone()
+            .unwrap_or_else(|| original_url.clone());
         let host = if original_url == "urn:originkeep:local-adoption" {
             "Local adoption".to_string()
         } else {
@@ -836,12 +861,14 @@ pub fn origin_graph(path: &Path) -> Result<OriginGraph, String> {
             .entry(source_value.clone())
             .or_insert(next_source_id)
             .clone();
-        nodes.entry(source_id.clone()).or_insert_with(|| OriginNode {
-            id: source_id.clone(),
-            kind: "SOURCE".into(),
-            label: source_value.clone(),
-            detail: None,
-        });
+        nodes
+            .entry(source_id.clone())
+            .or_insert_with(|| OriginNode {
+                id: source_id.clone(),
+                kind: "SOURCE".into(),
+                label: source_value.clone(),
+                detail: None,
+            });
         edges.insert((site_id, source_id.clone(), "ORIGIN".into()));
 
         let file_id = format!("file:{id}");
@@ -877,9 +904,15 @@ pub fn origin_graph(path: &Path) -> Result<OriginGraph, String> {
             ));
         }
         if let Some(version) = version_number {
-            if let Some((previous_version, previous_file)) = last_version_by_source.get(&source_value) {
+            if let Some((previous_version, previous_file)) =
+                last_version_by_source.get(&source_value)
+            {
                 if version > *previous_version {
-                    edges.insert((previous_file.clone(), file_id.clone(), "NEXT_VERSION".into()));
+                    edges.insert((
+                        previous_file.clone(),
+                        file_id.clone(),
+                        "NEXT_VERSION".into(),
+                    ));
                 }
             }
             if duplicate_of_id.is_none() {

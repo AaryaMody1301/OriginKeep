@@ -1,5 +1,8 @@
 use crate::{model::DownloadCapture, passport, storage};
-use std::{fs, path::{Path, PathBuf}};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 
 pub fn adopt_local_file(
     database: &Path,
@@ -45,20 +48,16 @@ pub fn adopt_local_file(
         browser_name: Some("OriginKeep desktop adoption".into()),
     };
     let ingested = storage::ingest_capture(database, &capture)?;
-    passport::update_metadata(
-        database,
-        ingested.id,
-        purpose,
-        note,
-        None,
-        "MANUAL".into(),
-    )
+    passport::update_metadata(database, ingested.id, purpose, note, None, "MANUAL".into())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::{env, time::{SystemTime, UNIX_EPOCH}};
+    use std::{
+        env,
+        time::{SystemTime, UNIX_EPOCH},
+    };
 
     #[test]
     fn adopts_local_bytes_without_inventing_web_origin() {

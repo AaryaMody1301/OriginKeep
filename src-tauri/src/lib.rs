@@ -144,13 +144,7 @@ fn adopt_local_file(
     purpose: Option<String>,
     note: Option<String>,
 ) -> Result<PassportRecord, String> {
-    adoption::adopt_local_file(
-        &state.database_path,
-        file_path,
-        source_url,
-        purpose,
-        note,
-    )
+    adoption::adopt_local_file(&state.database_path, file_path, source_url, purpose, note)
 }
 
 #[tauri::command]
@@ -177,10 +171,7 @@ fn origin_graph(state: tauri::State<'_, AppState>) -> Result<OriginGraph, String
 }
 
 #[tauri::command]
-fn inspect_trust(
-    state: tauri::State<'_, AppState>,
-    download_id: i64,
-) -> Result<TrustLens, String> {
+fn inspect_trust(state: tauri::State<'_, AppState>, download_id: i64) -> Result<TrustLens, String> {
     trust::inspect(&state.database_path, download_id)
 }
 

@@ -158,7 +158,9 @@ fn platform_origin_evidence(file_path: &Path) -> TrustEvidence {
 fn platform_origin_evidence(_file_path: &Path) -> TrustEvidence {
     TrustEvidence {
         state: "NOT_APPLICABLE".into(),
-        summary: "This platform has no OriginKeep-supported built-in download-origin metadata source.".into(),
+        summary:
+            "This platform has no OriginKeep-supported built-in download-origin metadata source."
+                .into(),
         detail: None,
     }
 }
@@ -222,7 +224,8 @@ fn publisher_signature_evidence(file_path: &Path) -> TrustEvidence {
 fn publisher_signature_evidence(_file_path: &Path) -> TrustEvidence {
     TrustEvidence {
         state: "NOT_APPLICABLE".into(),
-        summary: "No platform publisher-signature verifier is configured for this file on Linux.".into(),
+        summary: "No platform publisher-signature verifier is configured for this file on Linux."
+            .into(),
         detail: None,
     }
 }
@@ -240,12 +243,21 @@ fn c2pa_evidence(file_path: &Path) -> TrustEvidence {
             let stdout = String::from_utf8_lossy(&output.stdout);
             let parsed = serde_json::from_str::<Value>(&stdout);
             match parsed {
-                Ok(value) if value.get("active_manifest").is_some() || value.get("activeManifest").is_some() => {
+                Ok(value)
+                    if value.get("active_manifest").is_some()
+                        || value.get("activeManifest").is_some() =>
+                {
                     let invalid = validation_has_errors(&value);
                     TrustEvidence {
-                        state: if invalid { "INVALID" } else { "CRYPTOGRAPHIC_VALIDATION_PASSED" }.into(),
+                        state: if invalid {
+                            "INVALID"
+                        } else {
+                            "CRYPTOGRAPHIC_VALIDATION_PASSED"
+                        }
+                        .into(),
                         summary: if invalid {
-                            "C2PA metadata is present, but c2patool reported validation problems.".into()
+                            "C2PA metadata is present, but c2patool reported validation problems."
+                                .into()
                         } else {
                             "C2PA manifest validation passed. This proves cryptographic consistency, not that the issuer is inherently trustworthy.".into()
                         },
@@ -259,7 +271,8 @@ fn c2pa_evidence(file_path: &Path) -> TrustEvidence {
                 },
                 Err(_) => TrustEvidence {
                     state: "CHECK_FAILED".into(),
-                    summary: "c2patool returned output that OriginKeep could not parse as JSON.".into(),
+                    summary: "c2patool returned output that OriginKeep could not parse as JSON."
+                        .into(),
                     detail: Some(stdout.chars().take(2000).collect()),
                 },
             }
@@ -326,8 +339,12 @@ fn heuristic_contains_c2pa(file_path: &Path) -> bool {
         }
     }
     windows.iter().any(|bytes| {
-        bytes.windows(4).any(|window| window.eq_ignore_ascii_case(b"c2pa"))
-            || bytes.windows(5).any(|window| window.eq_ignore_ascii_case(b"jumbf"))
+        bytes
+            .windows(4)
+            .any(|window| window.eq_ignore_ascii_case(b"c2pa"))
+            || bytes
+                .windows(5)
+                .any(|window| window.eq_ignore_ascii_case(b"jumbf"))
     })
 }
 
@@ -356,7 +373,10 @@ pub fn verify_sigstore(
     let identity = identity.trim().to_string();
     let issuer = issuer.trim().to_string();
     if identity.is_empty() || issuer.is_empty() {
-        return Err("Sigstore verification requires the expected certificate identity and OIDC issuer".into());
+        return Err(
+            "Sigstore verification requires the expected certificate identity and OIDC issuer"
+                .into(),
+        );
     }
     let connection = Connection::open(path).map_err(|error| error.to_string())?;
     let local_path: String = connection
@@ -394,7 +414,8 @@ pub fn verify_sigstore(
             identity,
             issuer,
             state: "VERIFICATION_FAILED".into(),
-            evidence: command_detail(&output).unwrap_or_else(|| "Cosign returned a non-zero status.".into()),
+            evidence: command_detail(&output)
+                .unwrap_or_else(|| "Cosign returned a non-zero status.".into()),
         });
     }
     Ok(SigstoreVerification {
@@ -403,7 +424,11 @@ pub fn verify_sigstore(
         identity,
         issuer,
         state: "VERIFIED".into(),
-        evidence: String::from_utf8_lossy(&output.stdout).trim().chars().take(4000).collect(),
+        evidence: String::from_utf8_lossy(&output.stdout)
+            .trim()
+            .chars()
+            .take(4000)
+            .collect(),
     })
 }
 
@@ -446,8 +471,17 @@ fn command_evidence(
 fn command_detail(output: &Output) -> Option<String> {
     let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);
-    nonempty(format!("{}{}{}", stdout.trim(), if stdout.trim().is_empty() || stderr.trim().is_empty() { "" } else { " | " }, stderr.trim()))
-        .map(|value| value.chars().take(4000).collect())
+    nonempty(format!(
+        "{}{}{}",
+        stdout.trim(),
+        if stdout.trim().is_empty() || stderr.trim().is_empty() {
+            ""
+        } else {
+            " | "
+        },
+        stderr.trim()
+    ))
+    .map(|value| value.chars().take(4000).collect())
 }
 
 fn nonempty(value: String) -> Option<String> {
@@ -457,7 +491,10 @@ fn nonempty(value: String) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::{env, time::{SystemTime, UNIX_EPOCH}};
+    use std::{
+        env,
+        time::{SystemTime, UNIX_EPOCH},
+    };
 
     fn temp_file() -> PathBuf {
         let unique = SystemTime::now()
@@ -474,7 +511,10 @@ mod tests {
         let hash = storage::sha256_file(&path).unwrap();
         assert_eq!(integrity_evidence(&path, Some(&hash)).state, "MATCH");
         fs::write(&path, b"changed").unwrap();
-        assert_eq!(integrity_evidence(&path, Some(&hash)).state, "LOCAL_MODIFIED");
+        assert_eq!(
+            integrity_evidence(&path, Some(&hash)).state,
+            "LOCAL_MODIFIED"
+        );
         fs::remove_file(path).ok();
     }
 
@@ -484,7 +524,10 @@ mod tests {
         fs::write(&path, b"artifact").unwrap();
         let bundle = PathBuf::from(format!("{}.sigstore.json", path.display()));
         fs::write(&bundle, b"{}").unwrap();
-        assert_eq!(find_sigstore_bundle(&path).as_deref(), Some(bundle.as_path()));
+        assert_eq!(
+            find_sigstore_bundle(&path).as_deref(),
+            Some(bundle.as_path())
+        );
         fs::remove_file(path).ok();
         fs::remove_file(bundle).ok();
     }

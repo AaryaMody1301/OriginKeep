@@ -1,6 +1,9 @@
 use serde::Serialize;
 use serde_json::json;
-use std::{env, fs, path::{Path, PathBuf}};
+use std::{
+    env, fs,
+    path::{Path, PathBuf},
+};
 
 pub const CHROMIUM_EXTENSION_ID: &str = "mplmkmbnahpggimgfihfgieamonbbobh";
 pub const FIREFOX_EXTENSION_ID: &str = "originkeep@aaryamody1301.github.io";
@@ -58,7 +61,12 @@ pub fn ensure_registration() -> BridgeStatus {
         targets.push(BridgeTarget {
             browser: target.browser.into(),
             manifest_path: result.as_ref().ok().map(|path| path.display().to_string()),
-            state: if result.is_ok() { "REGISTERED" } else { "UNAVAILABLE" }.into(),
+            state: if result.is_ok() {
+                "REGISTERED"
+            } else {
+                "UNAVAILABLE"
+            }
+            .into(),
             detail: match result {
                 Ok(path) => format!("Native Messaging manifest available at {}", path.display()),
                 Err(error) => error,
@@ -154,12 +162,16 @@ fn browser_manifest_targets() -> Vec<BrowserManifestTarget> {
 fn locate_native_host() -> Option<PathBuf> {
     let executable = env::current_exe().ok()?;
     let parent = executable.parent()?;
-    let extension = if cfg!(target_os = "windows") { ".exe" } else { "" };
+    let extension = if cfg!(target_os = "windows") {
+        ".exe"
+    } else {
+        ""
+    };
     let name = format!("originkeep-native-host{extension}");
     let candidates = [
         parent.join(&name),
-        parent.join(".." ).join("Resources").join(&name),
-        parent.join(".." ).join("MacOS").join(&name),
+        parent.join("..").join("Resources").join(&name),
+        parent.join("..").join("MacOS").join(&name),
     ];
     candidates.into_iter().find(|path| path.is_file())
 }
