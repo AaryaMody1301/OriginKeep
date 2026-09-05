@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>OriginKeep Companion</title>
+    <style>
+      body { font: 14px system-ui, sans-serif; margin: 0; min-width: 300px; color: #171717; background: #fff; }
+      main { padding: 16px; }
+      h1 { font-size: 17px; margin: 0 0 8px; }
+      p { line-height: 1.45; margin: 8px 0; }
+      button { width: 100%; padding: 9px 12px; margin-top: 10px; font: inherit; cursor: pointer; }
+      small { display: block; margin-top: 10px; color: #666; line-height: 1.4; }
+      #status { font-weight: 600; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>OriginKeep Companion</h1>
+      <p>Basic download provenance is always local. Enhanced context is optional.</p>
+      <p id="status">Checking enhanced context…</p>
+      <button id="toggle" type="button">Enable enhanced context</button>
+      <small>
+        When enabled, OriginKeep can remember the page title, clicked link text and nearby page text for downloads. This context is sent only to the local OriginKeep native host.
+      </small>
+    </main>
+    <script src="popup.js"></script>
+  </body>
+</html>
