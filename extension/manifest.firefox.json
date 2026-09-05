@@ -1,0 +1,28 @@
+{
+  "manifest_version": 3,
+  "name": "OriginKeep Companion",
+  "version": "0.2.0",
+  "description": "Captures browser download provenance for the local OriginKeep desktop app, with optional page context.",
+  "permissions": ["downloads", "nativeMessaging", "storage", "scripting"],
+  "optional_permissions": ["tabs"],
+  "optional_host_permissions": ["http://*/*", "https://*/*"],
+  "background": {
+    "scripts": ["service-worker.js"]
+  },
+  "action": {
+    "default_title": "OriginKeep Companion — click to enable richer page context",
+    "default_icon": "icon.png"
+  },
+  "icons": {
+    "16": "icon.png",
+    "32": "icon.png",
+    "48": "icon.png",
+    "128": "icon.png"
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "originkeep@aaryamody1301.github.io",
+      "strict_min_version": "128.0"
+    }
+  }
+}
