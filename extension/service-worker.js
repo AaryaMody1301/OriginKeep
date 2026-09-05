@@ -106,6 +106,22 @@ async function sendCapture(item) {
   }
 }
 
+async function sendFallbackContext(context) {
+  try {
+    await api.runtime.sendNativeMessage(HOST_NAME, {
+      messageType: "contextObservation",
+      browserName: browserName(),
+      pageTitle: context.pageTitle,
+      pageUrl: context.pageUrl,
+      linkText: context.linkText,
+      contextText: context.contextText,
+      contextSource: "safari-fallback",
+    });
+  } catch (error) {
+    console.warn("OriginKeep fallback native context bridge unavailable", error);
+  }
+}
+
 api.runtime.onMessage.addListener((message, sender) => {
   if (message?.type !== "originkeep-download-context") return undefined;
   const context = {
@@ -118,6 +134,7 @@ api.runtime.onMessage.addListener((message, sender) => {
     tabId: sender.tab?.id ?? null,
   };
   void api.storage.local.set({ recentDownloadContext: context });
+  if (!api.downloads?.onCreated) void sendFallbackContext(context);
   return undefined;
 });
 
