@@ -3,6 +3,7 @@ mod browser_setup;
 mod model;
 pub mod native_host;
 mod passport;
+mod pending_context;
 mod phase3;
 mod phase4;
 mod secure_remote;
@@ -184,7 +185,7 @@ fn adopt_existing_file(
 pub fn run() {
     let database_path = storage::default_database_path()
         .and_then(|path| {
-            passport::initialize_database(&path)?;
+            pending_context::initialize_database(&path)?;
             Ok(path)
         })
         .expect("OriginKeep could not initialize its local database");
