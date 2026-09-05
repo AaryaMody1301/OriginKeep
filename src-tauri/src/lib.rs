@@ -1,11 +1,16 @@
 mod model;
 pub mod native_host;
+mod passport;
 mod phase3;
 mod phase4;
 mod secure_remote;
 mod storage;
 
 use model::{DownloadRecord, VerificationSummary};
+use passport::{
+    FilePassport, LocationRefreshSummary, OriginGraph, PassportExportResult, PassportSummary,
+    ReconnectResult, TrustObservation,
+};
 use phase3::{ComparisonResult, RemoteEvidence};
 use phase4::{LifecycleItem, LifecycleReview};
 use std::path::PathBuf;
@@ -77,11 +82,92 @@ fn restore_download(
     phase4::restore_download(&state.database_path, download_id)
 }
 
+#[tauri::command]
+fn list_passport_summaries(
+    state: tauri::State<'_, AppState>,
+) -> Result<Vec<PassportSummary>, String> {
+    passport::list_passport_summaries(&state.database_path)
+}
+
+#[tauri::command]
+fn get_file_passport(
+    state: tauri::State<'_, AppState>,
+    download_id: i64,
+) -> Result<FilePassport, String> {
+    passport::get_file_passport(&state.database_path, download_id)
+}
+
+#[tauri::command]
+fn update_passport_metadata(
+    state: tauri::State<'_, AppState>,
+    download_id: i64,
+    purpose: String,
+    note: Option<String>,
+    expires_at: Option<String>,
+    sigstore_identity: Option<String>,
+    sigstore_issuer: Option<String>,
+) -> Result<FilePassport, String> {
+    passport::update_passport_metadata(
+        &state.database_path,
+        download_id,
+        purpose,
+        note,
+        expires_at,
+        sigstore_identity,
+        sigstore_issuer,
+    )
+}
+
+#[tauri::command]
+fn export_passport(
+    state: tauri::State<'_, AppState>,
+    download_id: i64,
+) -> Result<PassportExportResult, String> {
+    passport::export_passport(&state.database_path, download_id)
+}
+
+#[tauri::command]
+fn import_passport(
+    state: tauri::State<'_, AppState>,
+    sidecar_path: String,
+) -> Result<FilePassport, String> {
+    passport::import_passport(&state.database_path, sidecar_path)
+}
+
+#[tauri::command]
+fn reconnect_file(
+    state: tauri::State<'_, AppState>,
+    download_id: i64,
+    new_path: String,
+) -> Result<ReconnectResult, String> {
+    passport::reconnect_file(&state.database_path, download_id, new_path)
+}
+
+#[tauri::command]
+fn refresh_locations(
+    state: tauri::State<'_, AppState>,
+) -> Result<LocationRefreshSummary, String> {
+    passport::refresh_locations(&state.database_path)
+}
+
+#[tauri::command]
+fn refresh_trust(
+    state: tauri::State<'_, AppState>,
+    download_id: i64,
+) -> Result<Vec<TrustObservation>, String> {
+    passport::refresh_trust(&state.database_path, download_id)
+}
+
+#[tauri::command]
+fn origin_graph(state: tauri::State<'_, AppState>) -> Result<OriginGraph, String> {
+    passport::origin_graph(&state.database_path)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let database_path = storage::default_database_path()
         .and_then(|path| {
-            phase4::initialize_database(&path)?;
+            passport::initialize_database(&path)?;
             Ok(path)
         })
         .expect("OriginKeep could not initialize its local database");
@@ -96,7 +182,16 @@ pub fn run() {
             compare_with_previous,
             lifecycle_review,
             archive_download,
-            restore_download
+            restore_download,
+            list_passport_summaries,
+            get_file_passport,
+            update_passport_metadata,
+            export_passport,
+            import_passport,
+            reconnect_file,
+            refresh_locations,
+            refresh_trust,
+            origin_graph
         ])
         .run(tauri::generate_context!())
         .expect("error while running OriginKeep");
