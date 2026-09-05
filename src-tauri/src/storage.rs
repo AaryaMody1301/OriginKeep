@@ -30,6 +30,15 @@ CREATE TABLE IF NOT EXISTS downloads (
     version_number INTEGER,
     duplicate_of_id INTEGER,
     local_state TEXT NOT NULL DEFAULT 'PRESENT',
+    page_url TEXT,
+    page_title TEXT,
+    link_text TEXT,
+    context_text TEXT,
+    browser_name TEXT,
+    purpose TEXT,
+    note TEXT,
+    expires_at TEXT,
+    retention_policy TEXT NOT NULL DEFAULT 'MANUAL',
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -41,6 +50,12 @@ CREATE INDEX IF NOT EXISTS idx_downloads_file_name ON downloads(file_name);
 pub fn default_database_path() -> Result<PathBuf, String> {
     let base = if cfg!(target_os = "windows") {
         env::var_os("LOCALAPPDATA").map(PathBuf::from)
+    } else if cfg!(target_os = "macos") {
+        env::var_os("HOME").map(|home| {
+            PathBuf::from(home)
+                .join("Library")
+                .join("Application Support")
+        })
     } else if let Some(path) = env::var_os("XDG_DATA_HOME") {
         Some(PathBuf::from(path))
     } else {
@@ -61,9 +76,13 @@ pub fn initialize_database(path: &Path) -> Result<(), String> {
 
 fn initialize_connection(connection: &Connection) -> rusqlite::Result<()> {
     connection.execute_batch(SCHEMA)?;
-    let version: i64 = connection.query_row("PRAGMA user_version", [], |row| row.get(0))?;
+    let mut version: i64 = connection.query_row("PRAGMA user_version", [], |row| row.get(0))?;
     if version < 2 {
         migrate_to_phase2(connection)?;
+        version = 2;
+    }
+    if version < 5 {
+        migrate_to_passports(connection)?;
     }
     Ok(())
 }
@@ -85,6 +104,30 @@ fn migrate_to_phase2(connection: &Connection) -> rusqlite::Result<()> {
 
     backfill_phase2_metadata(connection)?;
     connection.execute_batch("PRAGMA user_version = 2;")?;
+    Ok(())
+}
+
+fn migrate_to_passports(connection: &Connection) -> rusqlite::Result<()> {
+    add_column_if_missing(connection, "page_url", "TEXT")?;
+    add_column_if_missing(connection, "page_title", "TEXT")?;
+    add_column_if_missing(connection, "link_text", "TEXT")?;
+    add_column_if_missing(connection, "context_text", "TEXT")?;
+    add_column_if_missing(connection, "browser_name", "TEXT")?;
+    add_column_if_missing(connection, "purpose", "TEXT")?;
+    add_column_if_missing(connection, "note", "TEXT")?;
+    add_column_if_missing(connection, "expires_at", "TEXT")?;
+    add_column_if_missing(
+        connection,
+        "retention_policy",
+        "TEXT NOT NULL DEFAULT 'MANUAL'",
+    )?;
+    connection.execute_batch(
+        r#"
+        CREATE INDEX IF NOT EXISTS idx_downloads_purpose ON downloads(purpose);
+        CREATE INDEX IF NOT EXISTS idx_downloads_expires_at ON downloads(expires_at);
+        PRAGMA user_version = 5;
+        "#,
+    )?;
     Ok(())
 }
 
@@ -207,8 +250,12 @@ fn ingest_capture_with_connection(
         INSERT INTO downloads (
             capture_key, browser_download_id, original_url, final_url, referrer,
             local_path, file_name, mime_type, bytes, started_at, completed_at,
-            sha256, status, browser_state, source_identity, local_state
-        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, 'SOURCE_UNKNOWN', ?13, ?14, ?15)
+            sha256, status, browser_state, source_identity, local_state,
+            page_url, page_title, link_text, context_text, browser_name
+        ) VALUES (
+            ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12,
+            'SOURCE_UNKNOWN', ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20
+        )
         ON CONFLICT(capture_key) DO UPDATE SET
             original_url = excluded.original_url,
             final_url = excluded.final_url,
@@ -223,6 +270,11 @@ fn ingest_capture_with_connection(
             browser_state = excluded.browser_state,
             source_identity = COALESCE(excluded.source_identity, downloads.source_identity),
             local_state = excluded.local_state,
+            page_url = COALESCE(excluded.page_url, downloads.page_url),
+            page_title = COALESCE(excluded.page_title, downloads.page_title),
+            link_text = COALESCE(excluded.link_text, downloads.link_text),
+            context_text = COALESCE(excluded.context_text, downloads.context_text),
+            browser_name = COALESCE(excluded.browser_name, downloads.browser_name),
             updated_at = CURRENT_TIMESTAMP
         "#,
         params![
@@ -241,6 +293,11 @@ fn ingest_capture_with_connection(
             capture.state,
             identity,
             local_state,
+            capture.page_url,
+            capture.page_title,
+            capture.link_text,
+            capture.context_text,
+            capture.browser_name,
         ],
     )?;
 
@@ -395,6 +452,12 @@ fn list_downloads_with_connection(
            OR COALESCE(referrer, '') LIKE ?1
            OR COALESCE(sha256, '') LIKE ?1
            OR COALESCE(source_identity, '') LIKE ?1
+           OR COALESCE(page_url, '') LIKE ?1
+           OR COALESCE(page_title, '') LIKE ?1
+           OR COALESCE(link_text, '') LIKE ?1
+           OR COALESCE(context_text, '') LIKE ?1
+           OR COALESCE(purpose, '') LIKE ?1
+           OR COALESCE(note, '') LIKE ?1
         ORDER BY updated_at DESC, id DESC
         "#
     } else {
@@ -534,6 +597,11 @@ mod tests {
             started_at: Some("2026-09-05T00:00:00Z".into()),
             completed_at: Some("2026-09-05T00:00:01Z".into()),
             state: "complete".into(),
+            page_url: Some("https://example.com/reports".into()),
+            page_title: Some("Example reports".into()),
+            link_text: Some("Download report".into()),
+            context_text: Some("Annual reporting documents".into()),
+            browser_name: Some("test".into()),
         }
     }
 
@@ -632,5 +700,17 @@ mod tests {
         assert_eq!(summary.modified, 1);
         assert_eq!(rows[0].local_state, "LOCAL_MODIFIED");
         assert_eq!(rows[0].sha256.as_deref(), Some(baseline.as_str()));
+    }
+
+    #[test]
+    fn migration_adds_passport_context_columns() {
+        let connection = Connection::open_in_memory().unwrap();
+        initialize_connection(&connection).unwrap();
+        assert!(column_exists(&connection, "page_title").unwrap());
+        assert!(column_exists(&connection, "retention_policy").unwrap());
+        let version: i64 = connection
+            .query_row("PRAGMA user_version", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(version, 5);
     }
 }
