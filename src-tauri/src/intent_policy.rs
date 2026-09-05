@@ -74,7 +74,6 @@ pub fn apply(path: &Path, review: &mut LifecycleReview) -> Result<(), String> {
 mod tests {
     use super::*;
     use crate::phase4::{LifecycleItem, LifecycleSummary};
-    use rusqlite::params;
     use std::{
         env, fs,
         time::{SystemTime, UNIX_EPOCH},
