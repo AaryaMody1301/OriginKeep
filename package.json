@@ -1,7 +1,7 @@
 {
   "name": "originkeep",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -10,7 +10,10 @@
     "tauri": "tauri",
     "icons": "tauri icon src-tauri/icons/icon.png",
     "prepare:sidecar": "node scripts/prepare-sidecar.mjs",
-    "bundle:windows": "npm run icons && tauri build --bundles nsis"
+    "bundle:windows": "npm run icons && tauri build --bundles nsis",
+    "bundle:macos": "npm run icons && tauri build --config src-tauri/tauri.macos.conf.json",
+    "bundle:linux": "npm run icons && tauri build --config src-tauri/tauri.linux.conf.json",
+    "check:desktop": "npm run icons && npm run prepare:sidecar && tauri build --no-bundle"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.8.0",
