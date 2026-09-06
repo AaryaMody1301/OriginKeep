@@ -27,9 +27,9 @@ jobs:
       - name: Validate release tag and main ancestry
         shell: pwsh
         run: |
-          $version = (Get-Content package.json | ConvertFrom-Json).version
+          $version = (Get-Content src-tauri/tauri.conf.json | ConvertFrom-Json).version
           if (-not $env:GITHUB_REF_NAME.StartsWith("v$version")) {
-            throw "Tag $env:GITHUB_REF_NAME does not match package version $version"
+            throw "Tag $env:GITHUB_REF_NAME does not match Tauri app version $version"
           }
           git fetch origin main
           git merge-base --is-ancestor $env:GITHUB_SHA origin/main
@@ -60,11 +60,11 @@ jobs:
           tagName: ${{ github.ref_name }}
           releaseName: "OriginKeep ${{ github.ref_name }}"
           releaseBody: |
-            OriginKeep desktop release candidate for Windows, macOS and Linux, plus separate Chromium and Firefox companions.
+            OriginKeep 2.0 Universal File Passport release candidate for Windows, macOS and Linux, plus separate Chromium and Firefox companions.
 
-            The desktop builds use the same local-first provenance, File Passport, freshness, trust-evidence and safe-lifecycle implementation. Safari automatic download capture is not claimed because Apple's current Safari Web Extension tooling does not support the downloads manifest capability used by OriginKeep.
+            OriginKeep is local-first: no account, hosted backend, file upload, paid API or LLM is required for core functionality. The release includes provenance capture, portable File Passports, exact content identity, version lineage, remote freshness evidence, Trust Lens evidence, and recoverable lifecycle actions.
 
-            This release remains a draft until the clean-machine checklists in docs/RELEASE.md are completed. Unsigned platform builds can trigger operating-system reputation warnings; GitHub artifact attestations establish build provenance but do not replace platform code signing or a security review.
+            This release remains a draft until the clean-machine checks in docs/RELEASE.md are completed. Unsigned platform builds can trigger operating-system reputation warnings. GitHub artifact attestations establish build provenance but do not replace platform code signing, notarization, browser-store review or a security review.
           releaseDraft: true
           prerelease: ${{ contains(github.ref_name, '-') }}
           args: --bundles nsis
