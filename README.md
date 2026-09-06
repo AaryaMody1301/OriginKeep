@@ -4,6 +4,8 @@
 
 OriginKeep is a local-first desktop application and browser companion for persistent file provenance. It combines download origin, save context, SHA-256 content identity, version lineage, remote freshness evidence, authenticity signals and recoverable lifecycle actions in a single **File Passport**.
 
+> **OriginKeep 2.0 implementation status:** complete and release-candidate ready. The merged implementation passed frontend, Rust, Windows NSIS, macOS DMG and Linux AppImage/DEB CI gates. Public release tags still require the clean-machine acceptance and distribution checks in [`docs/RELEASE.md`](docs/RELEASE.md).
+
 The core relationship is:
 
 ```text
@@ -206,9 +208,13 @@ Downloads Review, retention preview, recoverable archive/restore, crash reconcil
 
 Bundled native-host installation, private-network/redirect protection, frozen dependency builds, pinned CI/release actions, privacy/security docs, installer CI and release checklist.
 
-### OriginKeep 2.0 — Universal File Passport — In development
+### OriginKeep 2.0 — Universal File Passport — Completed
 
-Portable passports, optional save context, existing-file adoption, content-based move/rename relinking, Origin Graph, intent/expiry policies, evidence-based Trust Lens, Firefox support and Windows/macOS/Linux packaging.
+Portable passports, optional save context, existing-file adoption, content-based move/rename relinking, Origin Graph, intent/expiry policies, evidence-based Trust Lens, Firefox support and Windows/macOS/Linux packaging are implemented and passed the 2.0 merge gate. Remaining work is release/distribution acceptance, not product implementation.
+
+## Release
+
+The release workflow builds Windows NSIS, macOS DMG, Linux AppImage/DEB, Chromium and Firefox artifacts from a version tag and keeps the GitHub release as a draft until clean-machine acceptance is complete. See [`docs/RELEASE.md`](docs/RELEASE.md) before creating or publishing `v2.0.0`.
 
 ## Documentation
 
@@ -220,7 +226,7 @@ Portable passports, optional save context, existing-file adoption, content-based
 - [`docs/PHASE3.md`](docs/PHASE3.md) — remote evidence and local comparison.
 - [`docs/PHASE4.md`](docs/PHASE4.md) — lifecycle invariants, retention and recovery.
 - [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md) — trust boundaries and residual risks.
-- [`docs/RELEASE.md`](docs/RELEASE.md) — clean-machine release checklist.
+- [`docs/RELEASE.md`](docs/RELEASE.md) — OriginKeep 2.0 release/clean-machine checklist.
 - [`PRIVACY.md`](PRIVACY.md) — local-first data handling.
 - [`SECURITY.md`](SECURITY.md) — vulnerability reporting and supported security boundaries.
 
